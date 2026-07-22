@@ -31,7 +31,7 @@ At the end of the month, the system automatically computes each student's attend
 
 ## 🚀 Live Demo
 
-`[Add your deployed link here after hosting, e.g. https://attendo-yourname.netlify.app]`
+https://attendance-site-xi.vercel.app/
 
 ## 📸 Screenshots
 
