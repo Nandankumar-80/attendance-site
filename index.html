@@ -36,6 +36,17 @@
     --grad: linear-gradient(135deg,#8b5cf6 0%,#6366f1 60%,#4f46e5 100%);
     --radius:12px;
   }
+  [data-theme="light"] {
+    --bg:#f8fafc;
+    --bg2:#ffffff;
+    --card:#ffffff;
+    --card2:#f1f5f9;
+    --border:#e2e8f0;
+    --border-soft:#cbd5e1;
+    --text:#0f172a;
+    --text-dim:#475569;
+    --text-faint:#64748b;
+  }
   *{box-sizing:border-box;margin:0;padding:0}
   body{
     background:var(--bg);
@@ -43,6 +54,7 @@
     font-family:'Inter',sans-serif;
     min-height:100vh;
     -webkit-font-smoothing:antialiased;
+    transition:background-color .2s, color .2s;
   }
   h1,h2,h3,.disp{font-family:'Space Grotesk',sans-serif}
   .mono{font-family:'JetBrains Mono',monospace}
@@ -56,13 +68,14 @@
     background:rgba(10,10,18,0.9);position:sticky;top:0;z-index:50;
     backdrop-filter:blur(8px);
   }
+  [data-theme="light"] .topbar{ background:rgba(248,250,252,0.9); }
   .logo{display:flex;align-items:center;gap:8px;font-size:19px;font-weight:700}
   .logo .dot{width:9px;height:9px;border-radius:50%;background:var(--grad);box-shadow:0 0 12px #8b5cf6}
   .topbar-right{display:flex;align-items:center;gap:12px}
   .user-chip{font-size:13px;color:var(--text-dim);padding:6px 12px;border:1px solid var(--border);border-radius:20px}
   .mono-tag{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--cyan);}
 
-  /* ---------- buttons ---------- */
+  /* ---------- buttons & inputs ---------- */
   .btn{
     font-family:'Inter',sans-serif;font-weight:600;font-size:14px;
     padding:11px 20px;border-radius:9px;border:1px solid transparent;
@@ -80,6 +93,22 @@
   .btn:disabled{opacity:0.4;cursor:not-allowed}
   .btn-block{width:100%;justify-content:center}
 
+  .search-input{
+    background:var(--bg2);border:1px solid var(--border);color:var(--text);
+    padding:9px 14px;border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;
+    outline:none;transition:border-color .12s;
+  }
+  .search-input:focus{border-color:var(--violet2)}
+
+  .badge-danger{background:rgba(248,113,113,0.15);color:var(--red);padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;display:inline-block}
+  .badge-warning{background:rgba(251,191,36,0.15);color:#fbbf24;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;display:inline-block}
+  .badge-success{background:rgba(52,211,153,0.15);color:var(--green);padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;display:inline-block}
+  tr.clickable{cursor:pointer}
+  tr.clickable:hover td{background:rgba(124,58,237,0.06)}
+
+  .history-log{display:flex;flex-direction:column;gap:8px;margin-top:14px;max-height:220px;overflow-y:auto}
+  .history-log-item{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--card2);border:1px solid var(--border-soft);border-radius:8px;font-size:13px}
+
   /* ---------- layout containers ---------- */
   .center-screen{flex:1;display:flex;align-items:center;justify-content:center;padding:24px}
   .container{max-width:1080px;margin:0 auto;padding:32px 28px;width:100%;flex:1}
@@ -95,12 +124,12 @@
   .auth-header p{color:var(--text-dim);font-size:14px}
   .field{margin-bottom:16px}
   .field label{display:block;font-size:13px;color:var(--text-dim);margin-bottom:6px;font-weight:500}
-  .field input,.field select{
+  .field input,.field select,.field textarea{
     width:100%;background:var(--bg2);border:1px solid var(--border);
     color:var(--text);padding:11px 13px;border-radius:8px;font-size:14px;
     font-family:'Inter',sans-serif;outline:none;transition:border-color .12s;
   }
-  .field input:focus,.field select:focus{border-color:var(--violet2)}
+  .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--violet2)}
   .field-error{color:var(--red);font-size:12px;margin-top:5px}
   .auth-switch{margin-top:18px;text-align:center;font-size:13px;color:var(--text-dim)}
   .auth-switch span{color:var(--violet2);cursor:pointer;font-weight:600}
@@ -163,7 +192,7 @@
     flex:1 1 30%;min-width:100px;padding:12px 6px;border:1px solid var(--border);border-radius:9px;text-align:center;
     cursor:pointer;font-size:12px;font-weight:600;color:var(--text-dim);transition:all .12s;
   }
-  .type-opt.active{border-color:var(--violet2);color:#fff;background:rgba(124,58,237,0.12)}
+  .type-opt.active{border-color:var(--violet2);color:var(--text);background:rgba(124,58,237,0.12)}
   .modal-actions{display:flex;gap:10px;margin-top:22px}
 
   /* ---------- group workspace ---------- */
@@ -182,7 +211,7 @@
     padding:10px 4px;margin-right:22px;font-size:14px;font-weight:600;color:var(--text-dim);
     cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;transition:color .12s;
   }
-  .tab.active{color:#fff;border-color:var(--violet2)}
+  .tab.active{color:var(--text);border-color:var(--violet2)}
 
   .panel{display:none}
   .panel.active{display:block}
@@ -196,7 +225,7 @@
   }
   tbody td{padding:12px 16px;border-bottom:1px solid var(--border-soft)}
   tbody tr:last-child td{border-bottom:none}
-  tbody tr:hover{background:rgba(255,255,255,0.015)}
+  tbody tr:hover{background:rgba(124,58,237,0.03)}
   .roll-pill{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--cyan)}
 
   .row-actions{display:flex;gap:8px}
@@ -259,7 +288,7 @@
 
   .toast{
     position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
-    background:var(--card2);border:1px solid var(--violet2);color:#fff;padding:12px 20px;
+    background:var(--card2);border:1px solid var(--violet2);color:var(--text);padding:12px 20px;
     border-radius:9px;font-size:13px;z-index:200;opacity:0;pointer-events:none;transition:opacity .25s, transform .25s;
     box-shadow:0 10px 30px -8px rgba(0,0,0,0.6);
   }
@@ -280,8 +309,10 @@
 <div id="app">
 
   <div class="topbar" id="topbar" style="display:none">
-    <div class="logo"><span class="dot"></span>Attendo<span class="mono-tag" style="margin-left:8px">v1</span></div>
+    <div class="logo"><span class="dot"></span>Attendo<span class="mono-tag" style="margin-left:8px">v1.1</span></div>
     <div class="topbar-right">
+      <button class="btn btn-ghost btn-sm" onclick="toggleTheme()" id="themeBtn" title="Toggle Light/Dark Theme">🌙</button>
+      <button class="btn btn-ghost btn-sm" onclick="openBackupModal()" title="Backup / Restore Data">💾 Data</button>
       <span class="user-chip" id="userChip"></span>
       <button class="btn btn-ghost btn-sm" onclick="logout()">Log out</button>
     </div>
@@ -328,7 +359,10 @@
         <h1>Your classes</h1>
         <p>Pick a class to take attendance or view reports.</p>
       </div>
-      <button class="btn btn-primary" onclick="openNewGroupModal()">+ New class</button>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <input type="text" class="search-input" id="dashSearch" placeholder="🔍 Search classes..." oninput="renderGroupGrid()" style="width:200px">
+        <button class="btn btn-primary" onclick="openNewGroupModal()">+ New class</button>
+      </div>
     </div>
     <div class="grid-cards" id="groupGrid"></div>
   </div>
@@ -353,20 +387,26 @@
 
     <!-- Students panel -->
     <div class="panel active" id="panel-students">
-      <div class="inline-form">
-        <input type="text" id="newStudentName" placeholder="Student name" style="flex:2;min-width:160px">
-        <input type="text" id="newStudentRoll" placeholder="Roll no." style="flex:1;min-width:100px">
+      <div class="inline-form" style="align-items:center">
+        <input type="text" id="newStudentName" placeholder="Student name" style="flex:2;min-width:150px">
+        <input type="text" id="newStudentRoll" placeholder="Roll no." style="flex:1;min-width:90px">
+        <input type="tel" id="newStudentPhone" placeholder="Phone / WhatsApp No." style="flex:1.2;min-width:130px">
         <button class="btn btn-primary btn-sm" onclick="addStudent()">+ Add student</button>
+        <div style="display:flex;gap:8px;margin-left:auto;flex-wrap:wrap">
+          <input type="text" class="search-input" id="studentSearch" placeholder="🔍 Search student..." oninput="renderStudents()" style="width:140px">
+          <button class="btn btn-ghost btn-sm" onclick="openCsvModal()">📥 Import CSV</button>
+          <button class="btn btn-ghost btn-sm" onclick="exportStudentsCsv()">📤 Export CSV</button>
+        </div>
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Roll no.</th><th>Name</th><th></th></tr></thead>
+          <thead><tr><th>Roll no.</th><th>Name</th><th>WhatsApp / Phone</th><th>Actions</th></tr></thead>
           <tbody id="studentTableBody"></tbody>
         </table>
       </div>
       <div id="studentsEmpty" class="empty-state" style="display:none;margin-top:14px">
         <div class="big">🎓</div>
-        No students yet — add your first one above.
+        No students found.
       </div>
     </div>
 
@@ -377,32 +417,46 @@
         <div class="field" style="margin:0"><label>Subject / period</label><input type="text" id="attSubject" placeholder="e.g. Data Structures"></div>
         <button class="btn btn-ghost btn-sm" onclick="markAll(true)">Mark all present</button>
         <button class="btn btn-ghost btn-sm" onclick="markAll(false)">Mark all absent</button>
+        <div id="editSessionBadge" style="display:none;align-items:center;gap:8px;background:rgba(251,191,36,0.15);padding:6px 12px;border-radius:8px;color:#fbbf24;font-size:12px;font-weight:600">
+          <span>✏️ Editing session</span>
+          <button class="btn btn-ghost btn-sm" onclick="cancelSessionEdit()" style="padding:2px 6px;font-size:11px">Cancel</button>
+        </div>
       </div>
       <div class="att-list" id="attList"></div>
-      <button class="btn btn-primary" onclick="saveSession()">Save attendance</button>
+      <button class="btn btn-primary" id="saveSessionBtn" onclick="saveSession()">Save attendance</button>
 
       <div class="session-list" id="sessionList"></div>
     </div>
 
     <!-- Reports panel -->
     <div class="panel" id="panel-reports">
-      <div class="inline-form">
+      <div class="inline-form" style="align-items:center">
         <input type="month" id="reportMonth" onchange="onReportMonthChange()">
         <select id="reportSubject" onchange="renderReport()"></select>
-        <button class="btn btn-ghost btn-sm" onclick="renderReport()">Refresh</button>
+        <select id="reportThreshold" onchange="renderReport()" style="max-width:160px">
+          <option value="100">All Students</option>
+          <option value="75">Defaulters (&lt; 75%)</option>
+          <option value="80">Defaulters (&lt; 80%)</option>
+          <option value="85">Defaulters (&lt; 85%)</option>
+          <option value="60">Defaulters (&lt; 60%)</option>
+        </select>
+        <button class="btn btn-ghost btn-sm" onclick="resetAndRefreshReport()">↻ Refresh & Reset</button>
+        <button class="btn btn-ghost btn-sm" onclick="downloadCsvMatrix()">📊 Export CSV</button>
+        <button class="btn btn-ghost btn-sm" onclick="openBulkWaModal()" style="color:#25D366;border-color:rgba(37,211,102,0.3)">💬 Bulk WhatsApp Alerts</button>
+        <button class="btn btn-ghost btn-sm" onclick="copyGroupDefaulterSummary()" title="Copy summary for WhatsApp Group">📋 Copy Group Summary</button>
         <button class="btn btn-primary btn-sm" onclick="downloadPdf()">↓ Download PDF</button>
       </div>
       <div class="report-summary" id="reportSummary"></div>
       <div id="classDaysWrap" style="margin-bottom:18px"></div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Roll no.</th><th>Name</th><th>Present</th><th>Total classes</th><th>Attendance</th></tr></thead>
+          <thead><tr><th>Roll no.</th><th>Name</th><th>Present</th><th>Total classes</th><th>Attendance</th><th>Actions</th></tr></thead>
           <tbody id="reportTableBody"></tbody>
         </table>
       </div>
       <div id="reportEmpty" class="empty-state" style="display:none;margin-top:14px">
         <div class="big">📋</div>
-        No classes recorded for this month yet.
+        No records match the current selection.
       </div>
     </div>
   </div>
@@ -460,6 +514,116 @@
   </div>
 </div>
 
+<!-- CSV Import Modal -->
+<div class="modal-backdrop" id="csvModalBackdrop">
+  <div class="modal">
+    <h2>📥 Import Students via CSV</h2>
+    <p style="font-size:13px;color:var(--text-dim);margin-bottom:16px">Upload a .csv file or paste text formatted as <code>RollNo, Name</code> (one per line):</p>
+    
+    <div class="field">
+      <label>Choose CSV file</label>
+      <input type="file" id="csvFileInput" accept=".csv,.txt" style="padding:8px" onchange="handleCsvFileSelect(event)">
+    </div>
+    <div class="field">
+      <label>Or paste CSV content</label>
+      <textarea id="csvInput" rows="5" placeholder="101, Rahul Sharma&#10;102, Priya Verma&#10;103, Amit Kumar"></textarea>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost btn-block" onclick="closeCsvModal()">Cancel</button>
+      <button class="btn btn-primary btn-block" onclick="processCsvImport()">Import Students</button>
+    </div>
+  </div>
+</div>
+
+<!-- Student History & WhatsApp Modal -->
+<div class="modal-backdrop" id="studentHistoryModalBackdrop">
+  <div class="modal" style="max-width:500px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start">
+      <div>
+        <h2 id="studentHistoryTitle" style="margin-bottom:4px">Student Profile</h2>
+        <p id="studentHistorySubtitle" style="font-size:13px;color:var(--text-dim)"></p>
+      </div>
+      <button class="icon-btn" onclick="closeStudentHistoryModal()" style="font-size:18px">✕</button>
+    </div>
+
+    <div class="report-summary" style="margin:20px 0 14px;gap:10px">
+      <div class="stat-card" style="padding:12px;min-width:90px"><div class="n" id="shTotal" style="font-size:20px">0</div><div class="l">Total</div></div>
+      <div class="stat-card" style="padding:12px;min-width:90px"><div class="n" id="shPresent" style="font-size:20px;color:var(--green)">0</div><div class="l">Present</div></div>
+      <div class="stat-card" style="padding:12px;min-width:90px"><div class="n" id="shAbsent" style="font-size:20px;color:var(--red)">0</div><div class="l">Absent</div></div>
+      <div class="stat-card" style="padding:12px;min-width:90px"><div class="n" id="shPct" style="font-size:20px">0%</div><div class="l">Overall</div></div>
+    </div>
+
+    <div class="field" style="margin-bottom:12px">
+      <label>Phone / WhatsApp Number</label>
+      <div style="display:flex;gap:8px">
+        <input type="tel" id="shPhoneInput" placeholder="e.g. 9876543210">
+        <button class="btn btn-ghost btn-sm" onclick="saveStudentPhoneFromModal()">Save Phone</button>
+      </div>
+    </div>
+
+    <div style="margin-bottom:16px">
+      <button class="btn btn-primary btn-block" onclick="sendWhatsAppAlert()" style="background:#25D366;border:none">
+        💬 Send WhatsApp Alert
+      </button>
+    </div>
+
+    <div style="font-size:13px;font-weight:600;color:var(--text-dim);margin-bottom:8px">Attendance Log History</div>
+    <div class="history-log" id="shLog"></div>
+
+    <div class="modal-actions" style="margin-top:18px">
+      <button class="btn btn-ghost btn-block" onclick="closeStudentHistoryModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Bulk WhatsApp Alerts Modal -->
+<div class="modal-backdrop" id="bulkWaModalBackdrop">
+  <div class="modal" style="max-width:550px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">
+      <div>
+        <h2 style="margin:0;color:#25D366">💬 Bulk WhatsApp Alert Queue</h2>
+        <p style="font-size:13px;color:var(--text-dim);margin-top:4px">Send WhatsApp warning alerts to defaulter students in 1 click each.</p>
+      </div>
+      <button class="icon-btn" onclick="closeBulkWaModal()" style="font-size:18px">✕</button>
+    </div>
+
+    <div id="bulkWaList" style="display:flex;flex-direction:column;gap:10px;max-height:55vh;overflow-y:auto;margin-bottom:16px;padding-right:4px"></div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost btn-block" onclick="copyGroupDefaulterSummary()">📋 Copy All to Group Text</button>
+      <button class="btn btn-primary btn-block" onclick="closeBulkWaModal()">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- Backup / Restore Modal -->
+<div class="modal-backdrop" id="backupModalBackdrop">
+  <div class="modal">
+    <h2>💾 Data Backup & Restore</h2>
+    <p style="font-size:13px;color:var(--text-dim);margin-bottom:20px">Export a full backup of all your classes, students, and attendance records or restore from a previously saved JSON file.</p>
+    
+    <div style="background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px">
+      <h3 style="font-size:14px;margin-bottom:6px">Export Backup</h3>
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px">Save your complete dataset as a JSON file to your device.</p>
+      <button class="btn btn-primary btn-sm btn-block" onclick="downloadDataBackup()">📥 Download Backup (JSON)</button>
+    </div>
+
+    <div style="background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:16px">
+      <h3 style="font-size:14px;margin-bottom:6px">Restore Backup</h3>
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px">Select a previously saved Attendo JSON file to restore.</p>
+      <div class="field" style="margin-bottom:10px">
+        <input type="file" id="backupFileInput" accept=".json" style="padding:6px;font-size:12px">
+      </div>
+      <button class="btn btn-ghost btn-sm btn-block" onclick="restoreDataBackup()">📤 Restore Data from File</button>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost btn-block" onclick="closeBackupModal()">Close</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -471,6 +635,28 @@ let appData = { groups: [] };
 let currentGroupId = null;
 let currentGroupType = 'college';
 let attMap = {}; // studentId -> bool, for the attendance form currently being filled
+let editingSessionId = null;
+let selectedStudentForHistory = null;
+
+/* ============================================================
+   THEME LOGIC
+============================================================ */
+function initTheme(){
+  const saved = localStorage.getItem('attendo_theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', saved);
+  const btn = document.getElementById('themeBtn');
+  if(btn) btn.textContent = saved === 'light' ? '☀️' : '🌙';
+}
+function toggleTheme(){
+  const curr = document.documentElement.getAttribute('data-theme') || 'dark';
+  const next = curr === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('attendo_theme', next);
+  const btn = document.getElementById('themeBtn');
+  if(btn) btn.textContent = next === 'light' ? '☀️' : '🌙';
+  toast('Theme switched to ' + next + ' mode');
+}
+initTheme();
 
 /* ============================================================
    STORAGE HELPERS
@@ -492,7 +678,7 @@ function toast(msg){
   t.textContent = msg;
   t.classList.add('show');
   clearTimeout(t._timer);
-  t._timer = setTimeout(()=>t.classList.remove('show'), 2200);
+  t._timer = setTimeout(()=>t.classList.remove('show'), 2400);
 }
 
 /* ============================================================
@@ -592,7 +778,16 @@ function groupInstitution(g){
 function renderGroupGrid(){
   const grid = document.getElementById('groupGrid');
   grid.innerHTML = '';
-  appData.groups.forEach(g=>{
+  const query = (document.getElementById('dashSearch')?.value || '').toLowerCase().trim();
+
+  const filtered = appData.groups.filter(g => {
+    if(!query) return true;
+    const inst = groupInstitution(g).toLowerCase();
+    const lbl = groupLabel(g).toLowerCase();
+    return inst.includes(query) || lbl.includes(query);
+  });
+
+  filtered.forEach(g=>{
     const card = document.createElement('div');
     card.className = 'group-card';
     card.onclick = ()=>openGroup(g.id);
@@ -670,6 +865,10 @@ function getGroup(){ return appData.groups.find(g=>g.id===currentGroupId); }
 
 function openGroup(id){
   currentGroupId = id;
+  editingSessionId = null;
+  if(document.getElementById('editSessionBadge')) document.getElementById('editSessionBadge').style.display = 'none';
+  if(document.getElementById('saveSessionBtn')) document.getElementById('saveSessionBtn').textContent = 'Save attendance';
+
   document.getElementById('dashboardScreen').style.display = 'none';
   document.getElementById('workspaceScreen').style.display = 'block';
   const g = getGroup();
@@ -714,11 +913,29 @@ function renderStudents(){
   const g = getGroup();
   const body = document.getElementById('studentTableBody');
   body.innerHTML = '';
-  document.getElementById('studentsEmpty').style.display = g.students.length ? 'none' : 'block';
-  g.students.slice().sort((a,b)=>a.rollNo.localeCompare(b.rollNo,undefined,{numeric:true})).forEach(s=>{
+
+  const query = (document.getElementById('studentSearch')?.value || '').toLowerCase().trim();
+  const sorted = g.students.slice().sort((a,b)=>a.rollNo.localeCompare(b.rollNo,undefined,{numeric:true}));
+  const filtered = sorted.filter(s => {
+    if(!query) return true;
+    return s.name.toLowerCase().includes(query) || s.rollNo.toLowerCase().includes(query) || (s.phone && s.phone.includes(query));
+  });
+
+  document.getElementById('studentsEmpty').style.display = filtered.length ? 'none' : 'block';
+
+  filtered.forEach(s=>{
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td><span class="roll-pill">${s.rollNo}</span></td><td>${s.name}</td>
-      <td class="row-actions"><button class="icon-btn" onclick="deleteStudent('${s.id}')">Remove</button></td>`;
+    tr.className = 'clickable';
+    tr.onclick = (e) => {
+      if(!e.target.closest('button')) openStudentHistoryModal(s.id);
+    };
+    tr.innerHTML = `<td><span class="roll-pill">${s.rollNo}</span></td>
+      <td><b>${s.name}</b></td>
+      <td><span style="font-size:13px;color:var(--text-dim)">${s.phone ? '📱 ' + s.phone : '<i style="opacity:0.6">Not added</i>'}</span></td>
+      <td class="row-actions">
+        <button class="icon-btn" style="color:var(--cyan)" onclick="openStudentHistoryModal('${s.id}')">Profile & History</button>
+        <button class="icon-btn" onclick="deleteStudent('${s.id}')">Remove</button>
+      </td>`;
     body.appendChild(tr);
   });
 }
@@ -726,46 +943,139 @@ function renderStudents(){
 async function addStudent(){
   const nameEl = document.getElementById('newStudentName');
   const rollEl = document.getElementById('newStudentRoll');
+  const phoneEl = document.getElementById('newStudentPhone');
   const name = nameEl.value.trim();
   const roll = rollEl.value.trim();
+  const phone = phoneEl ? phoneEl.value.trim() : '';
   if(!name || !roll){ toast('Enter both name and roll number.'); return; }
   const g = getGroup();
   if(g.students.some(s=>s.rollNo.toLowerCase()===roll.toLowerCase())){
     toast('That roll number is already used in this class.'); return;
   }
-  g.students.push({ id: uid(), name, rollNo: roll });
+  g.students.push({ id: uid(), name, rollNo: roll, phone });
   await persist();
-  nameEl.value=''; rollEl.value='';
+  nameEl.value=''; rollEl.value=''; if(phoneEl) phoneEl.value='';
   renderStudents();
   renderGroupGrid();
 }
 
 async function deleteStudent(sid){
+  if(!confirm('Are you sure you want to remove this student?')) return;
   const g = getGroup();
   g.students = g.students.filter(s=>s.id!==sid);
   g.sessions.forEach(s=>{ delete s.records[sid]; });
   await persist();
   renderStudents();
+  renderGroupGrid();
 }
 
-/* ---------- Attendance ---------- */
+/* ---------- CSV Import & Export ---------- */
+function openCsvModal(){ document.getElementById('csvModalBackdrop').classList.add('show'); }
+function closeCsvModal(){
+  document.getElementById('csvModalBackdrop').classList.remove('show');
+  document.getElementById('csvInput').value = '';
+  if(document.getElementById('csvFileInput')) document.getElementById('csvFileInput').value = '';
+}
+
+async function handleCsvFileSelect(e){
+  const file = e.target.files && e.target.files[0];
+  if(file){
+    try {
+      const text = await file.text();
+      document.getElementById('csvInput').value = text;
+      toast('CSV file loaded into preview.');
+    } catch(err){
+      console.error(err);
+      toast('Could not read CSV file.');
+    }
+  }
+}
+
+async function processCsvImport(){
+  const text = document.getElementById('csvInput').value.trim();
+  const fileInput = document.getElementById('csvFileInput');
+  let content = text;
+
+  if(!content && fileInput && fileInput.files && fileInput.files[0]){
+    try { content = await fileInput.files[0].text(); } catch(e){}
+  }
+
+  if(!content){ toast('Please paste CSV text or select a file.'); return; }
+
+  const lines = content.split(/\r?\n/);
+  const g = getGroup();
+  if(!g){ toast('No active class selected.'); return; }
+
+  let addedCount = 0;
+  let skippedCount = 0;
+
+  lines.forEach(line => {
+    line = line.trim();
+    if(!line) return;
+    const parts = line.split(/[,;\t]/).map(p => p.trim().replace(/^["']|["']$/g, ''));
+    if(parts.length >= 2){
+      if(parts[0].toLowerCase().includes('roll') && parts[1].toLowerCase().includes('name')) return;
+      let roll = parts[0];
+      let name = parts[1];
+      let phone = parts[2] || '';
+      if(parts[1].toLowerCase().includes('roll') && parts[0].toLowerCase().includes('name')){
+        name = parts[0];
+        roll = parts[1];
+      }
+      if(roll && name && !g.students.some(s => s.rollNo.toLowerCase() === roll.toLowerCase())){
+        g.students.push({ id: uid(), name, rollNo: roll, phone });
+        addedCount++;
+      } else {
+        skippedCount++;
+      }
+    }
+  });
+
+  await persist();
+  closeCsvModal();
+  renderStudents();
+  renderGroupGrid();
+  toast(`Imported ${addedCount} students (${skippedCount} skipped/duplicates)`);
+}
+
+function exportStudentsCsv(){
+  const g = getGroup();
+  if(!g.students.length){ toast('No students to export.'); return; }
+  let csv = 'Roll No,Name,Phone\n';
+  g.students.slice().sort((a,b)=>a.rollNo.localeCompare(b.rollNo,undefined,{numeric:true})).forEach(s => {
+    csv += `"${s.rollNo}","${s.name}","${s.phone || ''}"\n`;
+  });
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `students-${groupInstitution(g).replace(/\s+/g,'_')}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('Student roster exported to CSV.');
+}
+
+/* ---------- Attendance & Session Edit/Delete ---------- */
 function renderAttendanceForm(){
   const g = getGroup();
-  attMap = {};
-  g.students.forEach(s=> attMap[s.id] = true);
+  if(!editingSessionId){
+    attMap = {};
+    g.students.forEach(s=> attMap[s.id] = true);
+  }
   const list = document.getElementById('attList');
   list.innerHTML = '';
   if(!g.students.length){
-    list.innerHTML = `<div class="empty-state"><div class="big">🧑‍🎓</div>Add students first, under the Students tab.</div>`;
+    list.innerHTML = `<div class="empty-state"><div class="big">🧑‍🎓</div>Add students first under the Students tab.</div>`;
   }
   g.students.slice().sort((a,b)=>a.rollNo.localeCompare(b.rollNo,undefined,{numeric:true})).forEach(s=>{
+    const isPresent = attMap[s.id] !== undefined ? attMap[s.id] : true;
     const row = document.createElement('div');
     row.className = 'att-row';
     row.innerHTML = `
       <div class="who"><span class="roll-pill">${s.rollNo}</span><span>${s.name}</span></div>
       <div class="att-toggle" id="toggle-${s.id}">
-        <button class="present on" onclick="setAtt('${s.id}',true)">Present</button>
-        <button class="absent" onclick="setAtt('${s.id}',false)">Absent</button>
+        <button class="present ${isPresent ? 'on' : ''}" onclick="setAtt('${s.id}',true)">Present</button>
+        <button class="absent ${!isPresent ? 'on' : ''}" onclick="setAtt('${s.id}',false)">Absent</button>
       </div>`;
     list.appendChild(row);
   });
@@ -775,13 +1085,53 @@ function renderAttendanceForm(){
 function setAtt(sid, present){
   attMap[sid] = present;
   const t = document.getElementById('toggle-'+sid);
-  t.querySelector('.present').classList.toggle('on', present);
-  t.querySelector('.absent').classList.toggle('on', !present);
+  if(t){
+    t.querySelector('.present').classList.toggle('on', present);
+    t.querySelector('.absent').classList.toggle('on', !present);
+  }
 }
 
 function markAll(present){
   const g = getGroup();
   g.students.forEach(s=> setAtt(s.id, present));
+}
+
+function editSession(sessionId){
+  const g = getGroup();
+  const sess = g.sessions.find(s => s.id === sessionId);
+  if(!sess) return;
+  editingSessionId = sessionId;
+  document.getElementById('attDate').value = sess.date;
+  document.getElementById('attSubject').value = sess.subject;
+  document.getElementById('editSessionBadge').style.display = 'inline-flex';
+  document.getElementById('saveSessionBtn').textContent = 'Update Attendance';
+
+  attMap = {};
+  g.students.forEach(s => {
+    attMap[s.id] = sess.records[s.id] !== undefined ? sess.records[s.id] : true;
+  });
+
+  renderAttendanceForm();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function cancelSessionEdit(){
+  editingSessionId = null;
+  document.getElementById('editSessionBadge').style.display = 'none';
+  document.getElementById('saveSessionBtn').textContent = 'Save attendance';
+  renderAttendanceForm();
+}
+
+async function deleteSession(sessionId){
+  if(!confirm('Are you sure you want to delete this class attendance session?')) return;
+  const g = getGroup();
+  g.sessions = g.sessions.filter(s => s.id !== sessionId);
+  if(editingSessionId === sessionId) cancelSessionEdit();
+  await persist();
+  renderSessionList();
+  renderGroupGrid();
+  if(document.getElementById('panel-reports').classList.contains('active')) renderReport();
+  toast('Session deleted.');
 }
 
 async function saveSession(){
@@ -790,11 +1140,25 @@ async function saveSession(){
   const date = document.getElementById('attDate').value;
   const subject = document.getElementById('attSubject').value.trim() || 'Class';
   if(!date){ toast('Pick a date.'); return; }
+
   const records = {};
   g.students.forEach(s=> records[s.id] = !!attMap[s.id]);
-  g.sessions.push({ id: uid(), date, subject, records });
+
+  if(editingSessionId){
+    const idx = g.sessions.findIndex(s => s.id === editingSessionId);
+    if(idx !== -1){
+      g.sessions[idx] = { id: editingSessionId, date, subject, records };
+    }
+    editingSessionId = null;
+    document.getElementById('editSessionBadge').style.display = 'none';
+    document.getElementById('saveSessionBtn').textContent = 'Save attendance';
+    toast('Attendance session updated.');
+  } else {
+    g.sessions.push({ id: uid(), date, subject, records });
+    toast('Attendance saved.');
+  }
+
   await persist();
-  toast('Attendance saved.');
   document.getElementById('attSubject').value = '';
   renderSessionList();
   renderGroupGrid();
@@ -806,16 +1170,180 @@ function renderSessionList(){
   wrap.innerHTML = '';
   if(!g.sessions.length) return;
   const sorted = g.sessions.slice().sort((a,b)=> b.date.localeCompare(a.date));
-  sorted.slice(0,8).forEach(s=>{
+  sorted.slice(0,10).forEach(s=>{
     const presentCount = Object.values(s.records).filter(Boolean).length;
     const div = document.createElement('div');
     div.className = 'session-item';
-    div.innerHTML = `<span><b>${s.date}</b> — ${s.subject}</span><span>${presentCount}/${g.students.length} present</span>`;
+    div.innerHTML = `
+      <span><b>${s.date}</b> — ${s.subject} (${presentCount}/${g.students.length} present)</span>
+      <div style="display:flex;gap:6px">
+        <button class="icon-btn" style="color:var(--violet2)" onclick="editSession('${s.id}')">Edit</button>
+        <button class="icon-btn" onclick="deleteSession('${s.id}')">Delete</button>
+      </div>`;
     wrap.appendChild(div);
   });
 }
 
-/* ---------- Reports ---------- */
+/* ---------- Student Profile & History Modal ---------- */
+function openStudentHistoryModal(studentId){
+  const g = getGroup();
+  const student = g.students.find(s => s.id === studentId);
+  if(!student) return;
+  selectedStudentForHistory = student;
+
+  document.getElementById('studentHistoryTitle').textContent = student.name;
+  document.getElementById('studentHistorySubtitle').textContent = `Roll No: ${student.rollNo} • ${groupInstitution(g)}`;
+  if(document.getElementById('shPhoneInput')){
+    document.getElementById('shPhoneInput').value = student.phone || '';
+  }
+
+  const monthSessions = getMonthSessions();
+  const targetSessions = monthSessions.length ? monthSessions : g.sessions;
+  const total = targetSessions.length;
+  const presentCount = targetSessions.filter(s => s.records[student.id]).length;
+  const absentCount = total - presentCount;
+  const pct = total ? Math.round((presentCount / total) * 100) : 0;
+
+  document.getElementById('shTotal').textContent = total;
+  document.getElementById('shPresent').textContent = presentCount;
+  document.getElementById('shAbsent').textContent = absentCount;
+  document.getElementById('shPct').textContent = pct + '%';
+
+  const logContainer = document.getElementById('shLog');
+  logContainer.innerHTML = '';
+
+  if(!targetSessions.length){
+    logContainer.innerHTML = '<div style="color:var(--text-dim);font-size:13px;text-align:center;padding:12px">No attendance sessions recorded yet.</div>';
+  } else {
+    targetSessions.slice().sort((a,b)=>b.date.localeCompare(a.date)).forEach(s => {
+      const isPresent = s.records[student.id];
+      const div = document.createElement('div');
+      div.className = 'history-log-item';
+      div.innerHTML = `
+        <span><b>${s.date}</b> — ${s.subject}</span>
+        <span class="${isPresent ? 'badge-success' : 'badge-danger'}">${isPresent ? 'Present' : 'Absent'}</span>
+      `;
+      logContainer.appendChild(div);
+    });
+  }
+
+  document.getElementById('studentHistoryModalBackdrop').classList.add('show');
+}
+
+function closeStudentHistoryModal(){
+  document.getElementById('studentHistoryModalBackdrop').classList.remove('show');
+}
+
+async function saveStudentPhoneFromModal(){
+  if(!selectedStudentForHistory) return;
+  const input = document.getElementById('shPhoneInput');
+  if(!input) return;
+  const phone = input.value.trim();
+  selectedStudentForHistory.phone = phone;
+  await persist();
+  renderStudents();
+  toast('Student phone number saved!');
+}
+
+function sendWhatsAppAlert(targetStudent){
+  const student = targetStudent || selectedStudentForHistory;
+  if(!student) return;
+  const g = getGroup();
+  const monthSessions = getMonthSessions();
+  const targetSessions = monthSessions.length ? monthSessions : g.sessions;
+  const total = targetSessions.length;
+  const presentCount = targetSessions.filter(s => s.records[student.id]).length;
+  const pct = total ? Math.round((presentCount / total) * 100) : 0;
+  const subjectLabel = selectedSubjectLabel();
+
+  const msg = `Notice regarding Attendance:\nStudent: ${student.name} (Roll No: ${student.rollNo})\nClass: ${groupInstitution(g)} (${groupLabel(g)})\nSubject: ${subjectLabel}\nAttendance: ${presentCount}/${total} classes (${pct}%).\nStatus: ${pct < 75 ? '⚠️ Shortage Warning (Below 75%)' : 'Good Standing'}`;
+
+  const cleanPhone = (student.phone || '').replace(/\D/g, '');
+  let phoneParam = '';
+  if(cleanPhone.length >= 10){
+    phoneParam = cleanPhone.length === 10 ? '91' + cleanPhone : cleanPhone;
+  }
+
+  const whatsappUrl = phoneParam 
+    ? `https://wa.me/${phoneParam}?text=${encodeURIComponent(msg)}`
+    : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+
+  window.open(whatsappUrl, '_blank');
+}
+
+function sendWhatsAppAlertBySid(sid){
+  const g = getGroup();
+  const student = g.students.find(s => s.id === sid);
+  if(student) sendWhatsAppAlert(student);
+}
+
+function openBulkWaModal(){
+  const { rows } = computeReport();
+  const defaulters = rows.filter(r => r.pct < 75);
+  const container = document.getElementById('bulkWaList');
+  container.innerHTML = '';
+
+  if(!rows.length){
+    container.innerHTML = '<div style="color:var(--text-dim);padding:20px;text-align:center">No attendance sessions recorded for this selection.</div>';
+  } else if(!defaulters.length){
+    container.innerHTML = '<div style="color:var(--green);padding:20px;text-align:center;font-weight:600">🎉 Great news! All students have attendance >= 75%. No defaulters.</div>';
+  } else {
+    const g = getGroup();
+    defaulters.forEach(r => {
+      const student = g.students.find(s => s.id === r.studentId);
+      const phone = student?.phone || '';
+      const div = document.createElement('div');
+      div.className = 'history-log-item';
+      div.style.alignItems = 'center';
+      div.style.justifyContent = 'space-between';
+      div.style.gap = '10px';
+      div.innerHTML = `
+        <div>
+          <div style="font-weight:600;font-size:14px">${r.name} <span class="roll-pill">${r.rollNo}</span></div>
+          <div style="font-size:12px;color:var(--text-dim);margin-top:2px">Attendance: <b style="color:var(--red)">${r.pct}%</b> (${r.present}/${r.total}) ${phone ? '• 📱 ' + phone : '• <i>No Phone</i>'}</div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="sendWhatsAppAlertBySid('${r.studentId}')" style="background:#25D366;border:none;font-size:12px;padding:6px 12px;white-space:nowrap">
+          💬 Send Alert
+        </button>
+      `;
+      container.appendChild(div);
+    });
+  }
+
+  document.getElementById('bulkWaModalBackdrop').classList.add('show');
+}
+
+function closeBulkWaModal(){
+  document.getElementById('bulkWaModalBackdrop').classList.remove('show');
+}
+
+function copyGroupDefaulterSummary(){
+  const g = getGroup();
+  const { total, rows } = computeReport();
+  const defaulters = rows.filter(r => r.pct < 75);
+  const subjectLabel = selectedSubjectLabel();
+  const monthLabel = document.getElementById('reportMonth').value;
+
+  let text = `⚠️ ATTENDANCE SHORTAGE WARNING\nInstitution: ${groupInstitution(g)}\nClass: ${groupLabel(g)}\nMonth: ${monthLabel} | Subject: ${subjectLabel}\nTotal Classes Held: ${total}\n\n`;
+
+  if(!defaulters.length){
+    text += `✅ All students have achieved satisfactory attendance (75%+).\n`;
+  } else {
+    text += `The following students have attendance below 75%:\n`;
+    defaulters.forEach((d, idx) => {
+      text += `${idx + 1}. ${d.name} (Roll: ${d.rollNo}) — ${d.pct}% (${d.present}/${d.total} present)\n`;
+    });
+    text += `\nKindly contact the department / class coordinator immediately.`;
+  }
+
+  navigator.clipboard.writeText(text).then(() => {
+    toast('Defaulter list summary copied to clipboard! Paste in WhatsApp Group.');
+  }).catch(() => {
+    toast('Copied defaulter summary to clipboard.');
+  });
+}
+
+/* ---------- Reports & Defaulter Filter ---------- */
 function getMonthSessions(){
   const g = getGroup();
   const month = document.getElementById('reportMonth').value; // yyyy-mm
@@ -835,12 +1363,29 @@ function computeReport(){
   const g = getGroup();
   const sessions = getMonthSessions();
   const total = sessions.length;
-  const rows = g.students.map(s=>{
+  const threshold = parseInt(document.getElementById('reportThreshold')?.value || '100', 10);
+
+  let rows = g.students.map(s=>{
     const present = sessions.filter(sess => sess.records[s.id]).length;
     const pct = total ? Math.round((present/total)*100) : 0;
-    return { rollNo: s.rollNo, name: s.name, present, total, pct };
+    return { studentId: s.id, rollNo: s.rollNo, name: s.name, present, total, pct };
   }).sort((a,b)=>a.rollNo.localeCompare(b.rollNo,undefined,{numeric:true}));
+
+  if(threshold < 100){
+    rows = rows.filter(r => r.pct < threshold);
+  }
+
   return { total, rows };
+}
+
+function resetAndRefreshReport(){
+  const today = new Date().toISOString().slice(0,7);
+  document.getElementById('reportMonth').value = today;
+  populateSubjectOptions();
+  document.getElementById('reportSubject').value = '__all__';
+  document.getElementById('reportThreshold').value = '100';
+  renderReport();
+  toast('Report filters reset to initial state.');
 }
 
 function renderReport(){
@@ -850,7 +1395,7 @@ function renderReport(){
   const avgPct = rows.length ? Math.round(rows.reduce((a,r)=>a+r.pct,0)/rows.length) : 0;
   summary.innerHTML = `
     <div class="stat-card"><div class="n">${total}</div><div class="l">Classes held</div></div>
-    <div class="stat-card"><div class="n">${g.students.length}</div><div class="l">Students</div></div>
+    <div class="stat-card"><div class="n">${rows.length}</div><div class="l">Students listed</div></div>
     <div class="stat-card"><div class="n">${avgPct}%</div><div class="l">Average attendance</div></div>`;
 
   const daysWrap = document.getElementById('classDaysWrap');
@@ -868,13 +1413,22 @@ function renderReport(){
 
   const body = document.getElementById('reportTableBody');
   body.innerHTML = '';
-  document.getElementById('reportEmpty').style.display = total ? 'none' : 'block';
+  document.getElementById('reportEmpty').style.display = total ? (rows.length ? 'none' : 'block') : 'block';
+
   rows.forEach(r=>{
     const barClass = r.pct < 50 ? 'pct-low' : (r.pct < 75 ? 'pct-mid' : '');
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td><span class="roll-pill">${r.rollNo}</span></td><td>${r.name}</td>
-      <td>${r.present}</td><td>${r.total}</td>
-      <td><span class="pct-bar ${barClass}"><i style="width:${r.pct}%"></i></span>${r.pct}%</td>`;
+    tr.className = 'clickable';
+    tr.onclick = (e) => {
+      if(!e.target.closest('button')) openStudentHistoryModal(r.studentId);
+    };
+    tr.innerHTML = `
+      <td><span class="roll-pill">${r.rollNo}</span></td>
+      <td><b>${r.name}</b> ${r.pct < 75 ? '<span class="badge-danger" style="margin-left:6px">Shortage</span>' : ''}</td>
+      <td>${r.present}</td>
+      <td>${r.total}</td>
+      <td><span class="pct-bar ${barClass}"><i style="width:${r.pct}%"></i></span>${r.pct}%</td>
+      <td><button class="icon-btn" style="color:var(--cyan)" onclick="openStudentHistoryModal('${r.studentId}')">View History</button></td>`;
     body.appendChild(tr);
   });
 }
@@ -893,7 +1447,6 @@ function downloadPdf(){
   doc.text(`${groupInstitution(g)}  |  ${groupLabel(g)}`, 14, 25);
   doc.text(`Month: ${document.getElementById('reportMonth').value}   |   Subject: ${subjectLabel}   |   Classes held: ${total}`, 14, 31);
 
-  // list every class date (and its subject, useful when "All subjects" is selected)
   const sessions = getMonthSessions().slice().sort((a,b)=>a.date.localeCompare(b.date));
   const sessionLine = sessions.map(s=>{
     const d = new Date(s.date+'T00:00:00');
@@ -916,6 +1469,79 @@ function downloadPdf(){
   const fileSubject = subjectLabel === 'All subjects' ? 'all-subjects' : subjectLabel.replace(/\s+/g,'_');
   doc.save(`attendance-${groupInstitution(g).replace(/\s+/g,'_')}-${fileSubject}-${document.getElementById('reportMonth').value}.pdf`);
   toast('PDF downloaded.');
+}
+
+function downloadCsvMatrix(){
+  const g = getGroup();
+  const sessions = getMonthSessions().slice().sort((a,b)=>a.date.localeCompare(b.date));
+  const { rows } = computeReport();
+  if(!rows.length){ toast('No data to export.'); return; }
+
+  let csv = 'Roll No,Name,' + sessions.map(s => `"${s.date} (${s.subject.replace(/"/g,'""')})"`).join(',') + ',Total Present,Total Classes,Percentage\n';
+
+  rows.forEach(r => {
+    let rowStr = `"${r.rollNo}","${r.name}",`;
+    const sStatuses = sessions.map(s => s.records[r.studentId] ? 'P' : 'A');
+    rowStr += sStatuses.join(',') + `,${r.present},${r.total},${r.pct}%\n`;
+    csv += rowStr;
+  });
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `attendance-matrix-${groupInstitution(g).replace(/\s+/g,'_')}-${document.getElementById('reportMonth').value}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('Attendance Matrix exported to CSV.');
+}
+
+/* ---------- Backup & Restore ---------- */
+function openBackupModal(){ document.getElementById('backupModalBackdrop').classList.add('show'); }
+function closeBackupModal(){ document.getElementById('backupModalBackdrop').classList.remove('show'); }
+
+function downloadDataBackup(){
+  if(!currentUser){ toast('Please log in first.'); return; }
+  const backup = {
+    user: currentUser,
+    data: appData,
+    exportDate: new Date().toISOString(),
+    version: '1.1'
+  };
+  const jsonStr = JSON.stringify(backup, null, 2);
+  const blob = new Blob([jsonStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `attendo-backup-${currentUser.email}-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('Backup downloaded successfully.');
+}
+
+async function restoreDataBackup(){
+  const fileInput = document.getElementById('backupFileInput');
+  if(!fileInput || !fileInput.files || !fileInput.files[0]){
+    toast('Please select a JSON backup file.');
+    return;
+  }
+  try {
+    const text = await fileInput.files[0].text();
+    const backup = JSON.parse(text);
+    if(backup.data && Array.isArray(backup.data.groups)){
+      appData = backup.data;
+      await persist();
+      closeBackupModal();
+      if(currentGroupId) openGroup(currentGroupId);
+      else goToDashboard();
+      toast('Data restored successfully!');
+    } else {
+      toast('Invalid backup file format.');
+    }
+  } catch(e) {
+    console.error(e);
+    toast('Failed to parse backup file.');
+  }
 }
 
 /* ---------- PWA: register service worker ---------- */
