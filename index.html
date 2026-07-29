@@ -16,294 +16,11 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="jspdf.umd.min.js"></script>
 <script src="jspdf.plugin.autotable.min.js"></script>
-<style>
-  :root{
-    --bg:#0a0a12;
-    --bg2:#0f0f1a;
-    --card:#14141f;
-    --card2:#1a1a28;
-    --border:#26263a;
-    --border-soft:#1e1e2e;
-    --text:#eeeef5;
-    --text-dim:#9a99ad;
-    --text-faint:#65647a;
-    --violet:#7c3aed;
-    --violet2:#a78bfa;
-    --indigo:#4f46e5;
-    --cyan:#22d3ee;
-    --green:#34d399;
-    --red:#f87171;
-    --grad: linear-gradient(135deg,#8b5cf6 0%,#6366f1 60%,#4f46e5 100%);
-    --radius:12px;
-  }
-  [data-theme="light"] {
-    --bg:#f8fafc;
-    --bg2:#ffffff;
-    --card:#ffffff;
-    --card2:#f1f5f9;
-    --border:#e2e8f0;
-    --border-soft:#cbd5e1;
-    --text:#0f172a;
-    --text-dim:#475569;
-    --text-faint:#64748b;
-  }
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{
-    background:var(--bg);
-    color:var(--text);
-    font-family:'Inter',sans-serif;
-    min-height:100vh;
-    -webkit-font-smoothing:antialiased;
-    transition:background-color .2s, color .2s;
-  }
-  h1,h2,h3,.disp{font-family:'Space Grotesk',sans-serif}
-  .mono{font-family:'JetBrains Mono',monospace}
-  #app{min-height:100vh;display:flex;flex-direction:column}
-  a{color:inherit}
-
-  /* ---------- top bar ---------- */
-  .topbar{
-    display:flex;align-items:center;justify-content:space-between;
-    padding:16px 28px;border-bottom:1px solid var(--border-soft);
-    background:rgba(10,10,18,0.9);position:sticky;top:0;z-index:50;
-    backdrop-filter:blur(8px);
-  }
-  [data-theme="light"] .topbar{ background:rgba(248,250,252,0.9); }
-  .logo{display:flex;align-items:center;gap:8px;font-size:19px;font-weight:700}
-  .logo .dot{width:9px;height:9px;border-radius:50%;background:var(--grad);box-shadow:0 0 12px #8b5cf6}
-  .topbar-right{display:flex;align-items:center;gap:12px}
-  .user-chip{font-size:13px;color:var(--text-dim);padding:6px 12px;border:1px solid var(--border);border-radius:20px}
-  .mono-tag{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--cyan);}
-
-  /* ---------- buttons & inputs ---------- */
-  .btn{
-    font-family:'Inter',sans-serif;font-weight:600;font-size:14px;
-    padding:11px 20px;border-radius:9px;border:1px solid transparent;
-    cursor:pointer;transition:transform .12s ease, opacity .12s ease, border-color .12s;
-    display:inline-flex;align-items:center;gap:8px;
-  }
-  .btn:active{transform:scale(0.97)}
-  .btn-primary{background:var(--grad);color:#fff;box-shadow:0 4px 20px -4px rgba(124,58,237,0.55)}
-  .btn-primary:hover{opacity:0.92}
-  .btn-ghost{background:transparent;border-color:var(--border);color:var(--text)}
-  .btn-ghost:hover{border-color:var(--violet2)}
-  .btn-danger{background:transparent;border-color:#3a2020;color:var(--red)}
-  .btn-danger:hover{background:rgba(248,113,113,0.08)}
-  .btn-sm{padding:7px 13px;font-size:13px;border-radius:7px}
-  .btn:disabled{opacity:0.4;cursor:not-allowed}
-  .btn-block{width:100%;justify-content:center}
-
-  .search-input{
-    background:var(--bg2);border:1px solid var(--border);color:var(--text);
-    padding:9px 14px;border-radius:8px;font-size:13px;font-family:'Inter',sans-serif;
-    outline:none;transition:border-color .12s;
-  }
-  .search-input:focus{border-color:var(--violet2)}
-
-  .badge-danger{background:rgba(248,113,113,0.15);color:var(--red);padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;display:inline-block}
-  .badge-warning{background:rgba(251,191,36,0.15);color:#fbbf24;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;display:inline-block}
-  .badge-success{background:rgba(52,211,153,0.15);color:var(--green);padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;display:inline-block}
-  tr.clickable{cursor:pointer}
-  tr.clickable:hover td{background:rgba(124,58,237,0.06)}
-
-  .history-log{display:flex;flex-direction:column;gap:8px;margin-top:14px;max-height:220px;overflow-y:auto}
-  .history-log-item{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--card2);border:1px solid var(--border-soft);border-radius:8px;font-size:13px}
-
-  /* ---------- layout containers ---------- */
-  .center-screen{flex:1;display:flex;align-items:center;justify-content:center;padding:24px}
-  .container{max-width:1080px;margin:0 auto;padding:32px 28px;width:100%;flex:1}
-
-  /* ---------- auth card ---------- */
-  .auth-card{
-    width:100%;max-width:400px;background:var(--card);
-    border:1px solid var(--border);border-radius:16px;padding:36px 32px;
-    box-shadow:0 20px 60px -20px rgba(0,0,0,0.6);
-  }
-  .auth-header{margin-bottom:26px;text-align:left}
-  .auth-header h1{font-size:24px;font-weight:700;margin-bottom:6px}
-  .auth-header p{color:var(--text-dim);font-size:14px}
-  .field{margin-bottom:16px}
-  .field label{display:block;font-size:13px;color:var(--text-dim);margin-bottom:6px;font-weight:500}
-  .field input,.field select,.field textarea{
-    width:100%;background:var(--bg2);border:1px solid var(--border);
-    color:var(--text);padding:11px 13px;border-radius:8px;font-size:14px;
-    font-family:'Inter',sans-serif;outline:none;transition:border-color .12s;
-  }
-  .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--violet2)}
-  .field-error{color:var(--red);font-size:12px;margin-top:5px}
-  .auth-switch{margin-top:18px;text-align:center;font-size:13px;color:var(--text-dim)}
-  .auth-switch span{color:var(--violet2);cursor:pointer;font-weight:600}
-  .terminal-line{
-    font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-faint);
-    margin-top:22px;padding-top:16px;border-top:1px solid var(--border-soft);
-  }
-  .terminal-line .cmd{color:var(--cyan)}
-
-  /* ---------- dashboard ---------- */
-  .page-head{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:28px;flex-wrap:wrap;gap:14px}
-  .page-head h1{font-size:26px;font-weight:700}
-  .page-head p{color:var(--text-dim);font-size:14px;margin-top:4px}
-  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--violet2);margin-bottom:6px;letter-spacing:.02em}
-
-  .grid-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}
-  .group-card{
-    background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
-    padding:20px;cursor:pointer;transition:border-color .15s, transform .15s;position:relative;overflow:hidden;
-  }
-  .group-card:hover{border-color:var(--violet2);transform:translateY(-2px)}
-  .group-card::before{
-    content:'';position:absolute;top:0;left:0;width:100%;height:3px;background:var(--grad);
-  }
-  .group-card .badge{
-    display:inline-block;font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;
-    background:rgba(124,58,237,0.15);color:var(--violet2);margin-bottom:12px;
-  }
-  .group-card h3{font-size:17px;margin-bottom:4px}
-  .group-card p{font-size:13px;color:var(--text-dim);margin-bottom:14px}
-  .group-card .stats{display:flex;gap:16px;font-size:12px;color:var(--text-faint)}
-  .group-card .stats b{color:var(--text);font-weight:600}
-
-  .empty-state{
-    border:1px dashed var(--border);border-radius:var(--radius);padding:50px 20px;text-align:center;color:var(--text-dim);
-  }
-  .empty-state .big{font-size:32px;margin-bottom:10px}
-
-  .new-card{
-    background:var(--card2);border:1px dashed var(--border);border-radius:var(--radius);
-    display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;
-    cursor:pointer;color:var(--text-dim);min-height:150px;transition:border-color .15s,color .15s;
-  }
-  .new-card:hover{border-color:var(--violet2);color:var(--violet2)}
-  .new-card .plus{font-size:26px}
-
-  /* ---------- modal ---------- */
-  .modal-backdrop{
-    position:fixed;inset:0;background:rgba(5,5,10,0.75);display:none;
-    align-items:center;justify-content:center;z-index:100;padding:20px;backdrop-filter:blur(2px);
-  }
-  .modal-backdrop.show{display:flex}
-  .modal{
-    width:100%;max-width:460px;background:var(--card);border:1px solid var(--border);
-    border-radius:16px;padding:28px;max-height:88vh;overflow-y:auto;
-  }
-  .modal h2{font-size:19px;margin-bottom:20px}
-  .type-toggle{display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap}
-  .type-opt{
-    flex:1 1 30%;min-width:100px;padding:12px 6px;border:1px solid var(--border);border-radius:9px;text-align:center;
-    cursor:pointer;font-size:12px;font-weight:600;color:var(--text-dim);transition:all .12s;
-  }
-  .type-opt.active{border-color:var(--violet2);color:var(--text);background:rgba(124,58,237,0.12)}
-  .modal-actions{display:flex;gap:10px;margin-top:22px}
-
-  /* ---------- group workspace ---------- */
-  .workspace-head{margin-bottom:20px}
-  .back-link{
-    font-size:13px;color:var(--text-dim);cursor:pointer;display:inline-flex;align-items:center;gap:6px;
-    margin-bottom:14px;
-  }
-  .back-link:hover{color:var(--violet2)}
-  .workspace-title{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
-  .workspace-title h1{font-size:24px}
-  .workspace-title p{color:var(--text-dim);font-size:13px;margin-top:4px}
-
-  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--border-soft);margin:22px 0 24px;overflow-x:auto}
-  .tab{
-    padding:10px 4px;margin-right:22px;font-size:14px;font-weight:600;color:var(--text-dim);
-    cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;transition:color .12s;
-  }
-  .tab.active{color:var(--text);border-color:var(--violet2)}
-
-  .panel{display:none}
-  .panel.active{display:block}
-
-  /* ---------- table ---------- */
-  .table-wrap{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
-  table{width:100%;border-collapse:collapse;font-size:14px}
-  thead th{
-    text-align:left;padding:12px 16px;background:var(--card2);color:var(--text-dim);
-    font-size:12px;text-transform:uppercase;letter-spacing:.04em;font-weight:600;border-bottom:1px solid var(--border);
-  }
-  tbody td{padding:12px 16px;border-bottom:1px solid var(--border-soft)}
-  tbody tr:last-child td{border-bottom:none}
-  tbody tr:hover{background:rgba(124,58,237,0.03)}
-  .roll-pill{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--cyan)}
-
-  .row-actions{display:flex;gap:8px}
-  .icon-btn{
-    background:transparent;border:none;color:var(--text-faint);cursor:pointer;font-size:13px;
-    padding:4px 8px;border-radius:6px;
-  }
-  .icon-btn:hover{color:var(--red);background:rgba(248,113,113,0.08)}
-
-  .inline-form{display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap}
-  .inline-form input,.inline-form select{
-    background:var(--bg2);border:1px solid var(--border);color:var(--text);
-    padding:10px 12px;border-radius:8px;font-size:14px;font-family:'Inter',sans-serif;outline:none;
-  }
-  .inline-form input:focus{border-color:var(--violet2)}
-
-  /* ---------- attendance grid ---------- */
-  .att-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:20px}
-  .att-list{display:flex;flex-direction:column;gap:8px;margin-bottom:20px}
-  .att-row{
-    display:flex;align-items:center;justify-content:space-between;background:var(--card);
-    border:1px solid var(--border);border-radius:9px;padding:12px 16px;
-  }
-  .att-row .who{display:flex;align-items:center;gap:12px}
-  .att-row .roll-pill{min-width:52px}
-  .att-toggle{display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden}
-  .att-toggle button{
-    border:none;background:transparent;color:var(--text-dim);font-size:12px;font-weight:600;
-    padding:7px 14px;cursor:pointer;
-  }
-  .att-toggle button.present.on{background:rgba(52,211,153,0.18);color:var(--green)}
-  .att-toggle button.absent.on{background:rgba(248,113,113,0.18);color:var(--red)}
-
-  .session-list{display:flex;flex-direction:column;gap:8px;margin-top:26px}
-  .session-item{
-    display:flex;justify-content:space-between;align-items:center;padding:11px 16px;
-    background:var(--card2);border:1px solid var(--border-soft);border-radius:8px;font-size:13px;color:var(--text-dim);
-  }
-  .session-item b{color:var(--text)}
-
-  /* ---------- report ---------- */
-  .report-summary{display:flex;gap:14px;margin-bottom:22px;flex-wrap:wrap}
-  .stat-card{
-    background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px 20px;min-width:130px;
-  }
-  .stat-card .n{font-size:24px;font-weight:700;font-family:'Space Grotesk',sans-serif}
-  .stat-card .l{font-size:12px;color:var(--text-dim);margin-top:2px}
-  .pct-bar{width:70px;height:6px;background:var(--border);border-radius:4px;overflow:hidden;display:inline-block;vertical-align:middle;margin-right:8px}
-  .pct-bar i{display:block;height:100%;background:var(--grad)}
-  .pct-low i{background:var(--red)}
-  .pct-mid i{background:#fbbf24}
-
-  .classdays-label{font-size:12px;color:var(--text-dim);margin-bottom:8px;font-weight:600}
-  .classdays-row{display:flex;flex-wrap:wrap;gap:8px}
-  .classday-chip{
-    font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--cyan);
-    background:rgba(34,211,238,0.08);border:1px solid rgba(34,211,238,0.25);
-    padding:5px 11px;border-radius:20px;
-  }
-
-  .toast{
-    position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
-    background:var(--card2);border:1px solid var(--violet2);color:var(--text);padding:12px 20px;
-    border-radius:9px;font-size:13px;z-index:200;opacity:0;pointer-events:none;transition:opacity .25s, transform .25s;
-    box-shadow:0 10px 30px -8px rgba(0,0,0,0.6);
-  }
-  .toast.show{opacity:1;transform:translateX(-50%) translateY(-6px)}
-
-  ::selection{background:rgba(124,58,237,0.4)}
-  ::-webkit-scrollbar{width:8px;height:8px}
-  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:8px}
-
-  @media (max-width:640px){
-    .container{padding:22px 16px}
-    .topbar{padding:14px 16px}
-    .att-row{flex-direction:column;align-items:flex-start;gap:10px}
-  }
-</style>
+<script src="xlsx.full.min.js"></script>
+<script src="qrcode.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+<link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
 <div id="app">
@@ -311,15 +28,18 @@
   <div class="topbar" id="topbar" style="display:none">
     <div class="logo"><span class="dot"></span>Attendo<span class="mono-tag" style="margin-left:8px">v1.1</span></div>
     <div class="topbar-right">
+      <button class="btn btn-ghost btn-sm" onclick="openNotifModal()" id="notifBtn" style="position:relative" title="Smart Notifications & Alerts">
+        🔔<span id="notifBadge" style="position:absolute;top:-4px;right:-4px;background:#ef4444;color:#fff;border-radius:10px;padding:1px 5px;font-size:10px;font-weight:700;display:none">0</span>
+      </button>
       <button class="btn btn-ghost btn-sm" onclick="toggleTheme()" id="themeBtn" title="Toggle Light/Dark Theme">🌙</button>
       <button class="btn btn-ghost btn-sm" onclick="openBackupModal()" title="Backup / Restore Data">💾 Data</button>
-      <span class="user-chip" id="userChip"></span>
+      <span class="user-chip" id="userChip" onclick="openEditProfileModal()" style="cursor:pointer" title="Click to view/edit your Designation & Profile"></span>
       <button class="btn btn-ghost btn-sm" onclick="logout()">Log out</button>
     </div>
   </div>
 
   <!-- ============ AUTH SCREEN ============ -->
-  <div class="center-screen" id="authScreen">
+  <div class="center-screen" id="authScreen" style="display:none">
     <div class="auth-card">
       <div class="auth-header">
         <h1 id="authTitle">Welcome back</h1>
@@ -328,7 +48,22 @@
 
       <div id="signupNameField" class="field" style="display:none">
         <label>Full name</label>
-        <input type="text" id="signupName" placeholder="e.g. Rakesh Sharma">
+        <input type="text" id="signupName" placeholder="e.g. Nandan Kumar">
+      </div>
+      <div id="signupDesignationField" class="field" style="display:none">
+        <label>Designation / Job Post</label>
+        <select id="signupDesignation">
+          <optgroup label="College / University">
+            <option value="Guest Faculty">Guest Faculty</option>
+            <option value="Lab Teacher">Lab Teacher / Instructor</option>
+            <option value="Assistant Professor" selected>Assistant Professor</option>
+            <option value="Associate Professor">Associate Professor</option>
+            <option value="Professor">Professor</option>
+          </optgroup>
+          <optgroup label="School (1st–12th Standard)">
+            <option value="Teacher">School Teacher (Below 12th)</option>
+          </optgroup>
+        </select>
       </div>
       <div class="field">
         <label>Email</label>
@@ -348,6 +83,33 @@
       <div class="terminal-line">
         <span class="cmd">$</span> attendo --init &nbsp;→&nbsp; roll-call, digitized.
       </div>
+    </div>
+  </div>
+
+  <!-- ============ STUDENT PUBLIC MOBILE ATTENDANCE PORTAL ============ -->
+  <div class="center-screen" id="studentPublicPortalScreen" style="display:none">
+    <div class="auth-card" style="max-width:440px">
+      <div style="text-align:center;margin-bottom:20px">
+        <div style="width:48px;height:48px;background:var(--grad);border-radius:12px;margin:0 auto 12px auto;display:flex;align-items:center;justify-content:center;font-size:24px">📱</div>
+        <h1 style="font-size:22px;margin:0" id="portalInstName">Class Attendance</h1>
+        <p style="font-size:13px;color:var(--cyan);margin-top:4px" id="portalClassInfo">Scan & Mark Attendance Portal</p>
+      </div>
+
+      <div style="background:var(--card2);border:1px solid var(--violet2);border-radius:10px;padding:12px;margin-bottom:16px;text-align:center">
+        <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase">Subject & Date</div>
+        <div style="font-size:15px;font-weight:700;color:var(--text);margin-top:2px" id="portalSubjectDate">Loading session...</div>
+      </div>
+
+      <div class="field">
+        <label style="font-weight:600">Select your Roll Number & Name:</label>
+        <select id="portalStudentSelect" style="width:100%;padding:12px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:8px;font-size:14px"></select>
+      </div>
+
+      <button class="btn btn-primary btn-block" id="portalSubmitBtn" onclick="submitPublicStudentAttendance()" style="padding:14px;font-size:15px;margin-top:14px">
+        ✅ Mark Me Present
+      </button>
+
+      <div id="portalStatusMsg" style="margin-top:14px;padding:10px;border-radius:8px;font-size:13px;text-align:center;display:none"></div>
     </div>
   </div>
 
@@ -376,7 +138,18 @@
           <h1 id="wsTitle"></h1>
           <p id="wsSubtitle"></p>
         </div>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" id="lockClassBtn" onclick="toggleLockCurrentGroup()">🔒 Lock Class</button>
+          <button class="btn btn-ghost btn-sm" id="editClassBtn" onclick="openEditGroupModalCurrent()">✏️ Edit Class</button>
+          <button class="btn btn-danger btn-sm" id="deleteClassBtn" onclick="deleteGroupCurrent()">🗑️ Delete Class</button>
+        </div>
       </div>
+    </div>
+
+    <!-- Locked Class Notice Banner -->
+    <div id="lockedBanner" style="display:none;background:rgba(251,191,36,0.12);border:1px solid rgba(251,191,36,0.3);color:#fbbf24;padding:12px 16px;border-radius:10px;margin-bottom:16px;font-size:13px;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+      <span>🔒 <b>Semester / Class Locked:</b> This class has been locked. Attendance records, student details, and roster are read-only.</span>
+      <button class="btn btn-ghost btn-sm" onclick="toggleLockCurrentGroup()" style="padding:4px 12px;font-size:12px;border-color:rgba(251,191,36,0.4);color:#fbbf24">🔓 Unlock Class</button>
     </div>
 
     <div class="tabs">
@@ -388,13 +161,15 @@
     <!-- Students panel -->
     <div class="panel active" id="panel-students">
       <div class="inline-form" style="align-items:center">
-        <input type="text" id="newStudentName" placeholder="Student name" style="flex:2;min-width:150px">
-        <input type="text" id="newStudentRoll" placeholder="Roll no." style="flex:1;min-width:90px">
-        <input type="tel" id="newStudentPhone" placeholder="Phone / WhatsApp No." style="flex:1.2;min-width:130px">
-        <button class="btn btn-primary btn-sm" onclick="addStudent()">+ Add student</button>
+        <div id="addStudentFormControls" style="display:flex;gap:10px;flex:1;min-width:300px;align-items:center;flex-wrap:wrap">
+          <input type="text" id="newStudentName" placeholder="Student name" style="flex:2;min-width:150px">
+          <input type="text" id="newStudentRoll" placeholder="Roll no." style="flex:1;min-width:90px">
+          <input type="tel" id="newStudentPhone" placeholder="Phone / WhatsApp No." style="flex:1.2;min-width:130px">
+          <button class="btn btn-primary btn-sm" onclick="addStudent()">+ Add student</button>
+        </div>
         <div style="display:flex;gap:8px;margin-left:auto;flex-wrap:wrap">
           <input type="text" class="search-input" id="studentSearch" placeholder="🔍 Search student..." oninput="renderStudents()" style="width:140px">
-          <button class="btn btn-ghost btn-sm" onclick="openCsvModal()">📥 Import CSV</button>
+          <button class="btn btn-ghost btn-sm" id="importCsvBtn" onclick="openCsvModal()">📥 Import CSV / Excel</button>
           <button class="btn btn-ghost btn-sm" onclick="exportStudentsCsv()">📤 Export CSV</button>
         </div>
       </div>
@@ -415,6 +190,7 @@
       <div class="att-toolbar">
         <div class="field" style="margin:0"><label>Date</label><input type="date" id="attDate"></div>
         <div class="field" style="margin:0"><label>Subject / period</label><input type="text" id="attSubject" placeholder="e.g. Data Structures"></div>
+        <button class="btn btn-primary btn-sm" id="startQrBtn" onclick="startQrAttendanceSession()" style="background:var(--grad);border:none">📱 Start 5-Min QR & WhatsApp Mode</button>
         <button class="btn btn-ghost btn-sm" onclick="markAll(true)">Mark all present</button>
         <button class="btn btn-ghost btn-sm" onclick="markAll(false)">Mark all absent</button>
         <div id="editSessionBadge" style="display:none;align-items:center;gap:8px;background:rgba(251,191,36,0.15);padding:6px 12px;border-radius:8px;color:#fbbf24;font-size:12px;font-weight:600">
@@ -442,7 +218,9 @@
         </select>
         <button class="btn btn-ghost btn-sm" onclick="resetAndRefreshReport()">↻ Refresh & Reset</button>
         <button class="btn btn-ghost btn-sm" onclick="downloadCsvMatrix()">📊 Export CSV</button>
+        <button class="btn btn-ghost btn-sm" onclick="openMarksModal()" style="color:var(--cyan);border-color:rgba(56,189,248,0.4)" title="Configure & Calculate Attendance Internal Marks">💯 Attendance Marks</button>
         <button class="btn btn-ghost btn-sm" onclick="openBulkWaModal()" style="color:#25D366;border-color:rgba(37,211,102,0.3)">💬 Bulk WhatsApp Alerts</button>
+        <button class="btn btn-ghost btn-sm" onclick="downloadTopPerformersCertificates()" style="color:#f59e0b;border-color:rgba(245,158,11,0.4)" title="Download Certificate of Appreciation for Students with >= 95% attendance">🏆 Certificates (95%+)</button>
         <button class="btn btn-ghost btn-sm" onclick="copyGroupDefaulterSummary()" title="Copy summary for WhatsApp Group">📋 Copy Group Summary</button>
         <button class="btn btn-primary btn-sm" onclick="downloadPdf()">↓ Download PDF</button>
       </div>
@@ -450,7 +228,7 @@
       <div id="classDaysWrap" style="margin-bottom:18px"></div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Roll no.</th><th>Name</th><th>Present</th><th>Total classes</th><th>Attendance</th><th>Actions</th></tr></thead>
+          <thead><tr id="reportTableHeaderRow"><th>Roll no.</th><th>Name</th><th>Present</th><th>Total classes</th><th>Attendance</th><th>Actions</th></tr></thead>
           <tbody id="reportTableBody"></tbody>
         </table>
       </div>
@@ -463,10 +241,10 @@
 
 </div>
 
-<!-- New group modal -->
+<!-- New / Edit group modal -->
 <div class="modal-backdrop" id="groupModalBackdrop">
   <div class="modal">
-    <h2>Set up a new class</h2>
+    <h2 id="groupModalTitle">Set up a new class</h2>
     <div class="type-toggle">
       <div class="type-opt active" id="typeCollege" onclick="setGroupType('college')">College</div>
       <div class="type-opt" id="typeSchool" onclick="setGroupType('school')">School (11th / 12th)</div>
@@ -509,27 +287,51 @@
 
     <div class="modal-actions">
       <button class="btn btn-ghost btn-block" onclick="closeGroupModal()">Cancel</button>
-      <button class="btn btn-primary btn-block" onclick="createGroup()">Create class</button>
+      <button class="btn btn-primary btn-block" id="groupModalSubmitBtn" onclick="createGroup()">Create class</button>
     </div>
   </div>
 </div>
 
-<!-- CSV Import Modal -->
+<!-- CSV / Excel Import Modal -->
 <div class="modal-backdrop" id="csvModalBackdrop">
-  <div class="modal">
-    <h2>📥 Import Students via CSV</h2>
-    <p style="font-size:13px;color:var(--text-dim);margin-bottom:16px">Upload a .csv file or paste text formatted as <code>RollNo, Name</code> (one per line):</p>
+  <div class="modal" style="max-width:560px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <h2 style="margin:0">📥 Import Students (Excel / CSV)</h2>
+      <button class="icon-btn" onclick="closeCsvModal()" style="font-size:18px">✕</button>
+    </div>
+    <p style="font-size:13px;color:var(--text-dim);margin-bottom:16px">
+      Upload an <b>Excel sheet (.xlsx, .xls)</b>, <b>CSV file</b>, or paste data copied from Excel/Google Sheets:
+    </p>
     
     <div class="field">
-      <label>Choose CSV file</label>
-      <input type="file" id="csvFileInput" accept=".csv,.txt" style="padding:8px" onchange="handleCsvFileSelect(event)">
+      <label>Select Excel or CSV File (.xlsx, .xls, .csv)</label>
+      <input type="file" id="csvFileInput" accept=".xlsx,.xls,.csv,.txt,.ods" style="padding:8px" onchange="handleFileSelect(event)">
     </div>
     <div class="field">
-      <label>Or paste CSV content</label>
-      <textarea id="csvInput" rows="5" placeholder="101, Rahul Sharma&#10;102, Priya Verma&#10;103, Amit Kumar"></textarea>
+      <label>Or paste Excel / CSV text (Roll No, Name, Phone)</label>
+      <textarea id="csvInput" rows="4" placeholder="101, Rahul Sharma, 9876543210&#10;102, Priya Verma, 9876543211&#10;103, Amit Kumar" oninput="updateImportPreview()"></textarea>
     </div>
 
-    <div class="modal-actions">
+    <div id="importPreviewArea" style="display:none;margin-top:12px;background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-size:12px;font-weight:600;color:var(--cyan)" id="previewTitle">Parsed Preview</span>
+        <span style="font-size:11px;color:var(--text-dim)" id="previewCount">0 students</span>
+      </div>
+      <div style="max-height:150px;overflow-y:auto;border:1px solid var(--border-soft);border-radius:6px">
+        <table style="width:100%;font-size:12px;border-collapse:collapse">
+          <thead>
+            <tr style="background:var(--card);text-align:left;color:var(--text-dim)">
+              <th style="padding:6px 10px;border-bottom:1px solid var(--border)">Roll No</th>
+              <th style="padding:6px 10px;border-bottom:1px solid var(--border)">Name</th>
+              <th style="padding:6px 10px;border-bottom:1px solid var(--border)">Phone</th>
+            </tr>
+          </thead>
+          <tbody id="previewTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="modal-actions" style="margin-top:18px">
       <button class="btn btn-ghost btn-block" onclick="closeCsvModal()">Cancel</button>
       <button class="btn btn-primary btn-block" onclick="processCsvImport()">Import Students</button>
     </div>
@@ -558,7 +360,7 @@
       <label>Phone / WhatsApp Number</label>
       <div style="display:flex;gap:8px">
         <input type="tel" id="shPhoneInput" placeholder="e.g. 9876543210">
-        <button class="btn btn-ghost btn-sm" onclick="saveStudentPhoneFromModal()">Save Phone</button>
+        <button class="btn btn-ghost btn-sm" id="shSavePhoneBtn" onclick="saveStudentPhoneFromModal()">Save Phone</button>
       </div>
     </div>
 
@@ -572,35 +374,247 @@
     <div class="history-log" id="shLog"></div>
 
     <div class="modal-actions" style="margin-top:18px">
+      <button class="btn btn-ghost btn-block" id="shEditBtn" onclick="openEditStudentModalFromHistory()">✏️ Edit Student Info</button>
       <button class="btn btn-ghost btn-block" onclick="closeStudentHistoryModal()">Close</button>
     </div>
   </div>
 </div>
 
-<!-- Bulk WhatsApp Alerts Modal -->
-<div class="modal-backdrop" id="bulkWaModalBackdrop">
-  <div class="modal" style="max-width:550px">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">
-      <div>
-        <h2 style="margin:0;color:#25D366">💬 Bulk WhatsApp Alert Queue</h2>
-        <p style="font-size:13px;color:var(--text-dim);margin-top:4px">Send WhatsApp warning alerts to defaulter students in 1 click each.</p>
-      </div>
-      <button class="icon-btn" onclick="closeBulkWaModal()" style="font-size:18px">✕</button>
+<!-- Edit Student Modal -->
+<div class="modal-backdrop" id="editStudentModalBackdrop">
+  <div class="modal" style="max-width:440px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h2 style="margin:0">✏️ Edit Student Details</h2>
+      <button class="icon-btn" onclick="closeEditStudentModal()" style="font-size:18px">✕</button>
+    </div>
+    
+    <div class="field">
+      <label>Roll Number</label>
+      <input type="text" id="editStudentRoll" placeholder="e.g. 101 or 21CSE01">
+    </div>
+    <div class="field">
+      <label>Full Name</label>
+      <input type="text" id="editStudentName" placeholder="e.g. Rahul Sharma">
+    </div>
+    <div class="field">
+      <label>Phone / WhatsApp Number</label>
+      <input type="tel" id="editStudentPhone" placeholder="e.g. 9876543210">
     </div>
 
-    <div id="bulkWaList" style="display:flex;flex-direction:column;gap:10px;max-height:55vh;overflow-y:auto;margin-bottom:16px;padding-right:4px"></div>
+    <div class="modal-actions" style="margin-top:20px">
+      <button class="btn btn-ghost btn-block" onclick="closeEditStudentModal()">Cancel</button>
+      <button class="btn btn-primary btn-block" onclick="saveStudentEdit()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Profile Modal -->
+<div class="modal-backdrop" id="editProfileModalBackdrop">
+  <div class="modal" style="max-width:420px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h2 style="margin:0">👤 Teacher Profile</h2>
+      <button class="icon-btn" onclick="closeEditProfileModal()" style="font-size:18px">✕</button>
+    </div>
+    
+    <div class="field">
+      <label>Full Name</label>
+      <input type="text" id="profileName">
+    </div>
+    <div class="field">
+      <label>Designation / Job Post</label>
+      <select id="profileDesignation">
+        <optgroup label="College / University">
+          <option value="Guest Faculty">Guest Faculty</option>
+          <option value="Lab Teacher">Lab Teacher / Instructor</option>
+          <option value="Assistant Professor">Assistant Professor</option>
+          <option value="Associate Professor">Associate Professor</option>
+          <option value="Professor">Professor</option>
+        </optgroup>
+        <optgroup label="School (1st–12th Standard)">
+          <option value="Teacher">School Teacher (Below 12th)</option>
+        </optgroup>
+      </select>
+    </div>
+
+    <div class="modal-actions" style="margin-top:20px">
+      <button class="btn btn-ghost btn-block" onclick="closeEditProfileModal()">Cancel</button>
+      <button class="btn btn-primary btn-block" onclick="saveProfileEdit()">Save Profile</button>
+    </div>
+  </div>
+</div>
+
+<!-- QR Code & WhatsApp Attendance Modal -->
+<div class="modal-backdrop" id="qrModalBackdrop">
+  <div class="modal" style="max-width:540px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">
+      <div>
+        <h2 style="margin:0">📱 Dynamic 5-Min QR & WhatsApp Mode</h2>
+        <p style="font-size:13px;color:var(--text-dim);margin-top:2px" id="qrModalSubtitle">Class Attendance Session</p>
+      </div>
+      <button class="icon-btn" onclick="closeQrModal()" style="font-size:18px">✕</button>
+    </div>
+
+    <!-- Countdown Timer Bar -->
+    <div style="background:var(--card2);border:1px solid var(--violet2);border-radius:12px;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div>
+        <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em">Session Expiring In</div>
+        <div style="font-size:24px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--violet2)" id="qrTimer">05:00</div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="shareQrToWhatsApp()" style="color:#25D366;border-color:rgba(37,211,102,0.4)">
+        💬 Share Link to WhatsApp
+      </button>
+    </div>
+
+    <!-- Large QR Code Display -->
+    <div style="background:#ffffff;padding:16px;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;margin-bottom:16px">
+      <div id="qrCanvasContainer"></div>
+      <div style="color:#111;font-size:12px;margin-top:8px;font-weight:600;text-align:center">Scan with Phone Camera to Mark Attendance</div>
+    </div>
+
+    <!-- Live Counter & Physical Headcount Verification -->
+    <div style="background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <span style="font-size:13px;font-weight:600;color:var(--cyan)">Live Submissions Marked</span>
+        <span style="font-size:16px;font-weight:700;color:var(--green)" id="qrLiveCount">0 / 0</span>
+      </div>
+
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+        <div style="flex:1;min-width:160px">
+          <label style="font-size:12px;color:var(--text-dim);display:block;margin-bottom:4px">Enter Physical Headcount (Class Count):</label>
+          <input type="number" id="physicalHeadcountInput" min="0" placeholder="e.g. 35" oninput="verifyHeadcountMatch()" style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:7px">
+        </div>
+      </div>
+
+      <div id="headcountStatusBadge" style="font-size:12px;padding:8px 12px;border-radius:8px;display:none"></div>
+    </div>
+
+    <!-- Simulation Test Button for Teacher -->
+    <div style="margin-bottom:14px;text-align:center">
+      <button class="btn btn-ghost btn-sm btn-block" onclick="openStudentScanModal()" style="font-size:12px">
+        📲 Test / Simulate Student Submission
+      </button>
+    </div>
 
     <div class="modal-actions">
-      <button class="btn btn-ghost btn-block" onclick="copyGroupDefaulterSummary()">📋 Copy All to Group Text</button>
-      <button class="btn btn-primary btn-block" onclick="closeBulkWaModal()">Done</button>
+      <button class="btn btn-ghost btn-block" onclick="closeQrModal()">Cancel</button>
+      <button class="btn btn-primary btn-block" onclick="finishQrSessionAndSave()">Approve & Save Attendance</button>
+    </div>
+  </div>
+</div>
+
+<!-- Student Scan & Mark Portal Simulation Modal -->
+<div class="modal-backdrop" id="studentScanModalBackdrop">
+  <div class="modal" style="max-width:440px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <h2 style="margin:0;color:var(--cyan)">📲 Student Attendance Portal</h2>
+      <button class="icon-btn" onclick="closeStudentScanModal()" style="font-size:18px">✕</button>
+    </div>
+    <p style="font-size:13px;color:var(--text-dim);margin-bottom:14px">Select your name or roll number to mark present for this class session:</p>
+
+    <div class="field">
+      <label>Select Student</label>
+      <select id="scanStudentSelect" style="width:100%;padding:10px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:8px"></select>
+    </div>
+
+    <div class="modal-actions" style="margin-top:18px">
+      <button class="btn btn-ghost btn-block" onclick="closeStudentScanModal()">Cancel</button>
+      <button class="btn btn-primary btn-block" onclick="submitStudentSelfAttendance()">✅ Mark Me Present</button>
+    </div>
+  </div>
+</div>
+
+<!-- Attendance Marks Configuration Modal -->
+<div class="modal-backdrop" id="marksModalBackdrop">
+  <div class="modal" style="max-width:560px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">
+      <div>
+        <h2 style="margin:0">💯 Attendance Marks Configuration</h2>
+        <p style="font-size:13px;color:var(--text-dim);margin-top:2px" id="marksModalSubtitle">Internal Assessment Attendance Weightage</p>
+      </div>
+      <button class="icon-btn" onclick="closeMarksModal()" style="font-size:18px">✕</button>
+    </div>
+
+    <!-- Enable Toggle & Max Marks -->
+    <div style="background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div>
+          <b style="font-size:14px">Enable Attendance Marks Column</b>
+          <div style="font-size:12px;color:var(--text-dim)">Show marks in reports table, PDF & CSV exports</div>
+        </div>
+        <input type="checkbox" id="marksEnabledToggle" onchange="toggleMarksControls()" style="width:20px;height:20px;cursor:pointer">
+      </div>
+
+      <div id="marksControlsGroup">
+        <div style="display:flex;gap:12px;align-items:center;margin-top:12px">
+          <label style="font-size:13px;font-weight:600;min-width:130px">Total Max Marks:</label>
+          <input type="number" id="marksMaxInput" min="1" max="100" value="10" style="width:100px;padding:6px 10px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;font-weight:600">
+          <span style="font-size:12px;color:var(--text-dim)">(e.g. 5, 10, 20 marks)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Marking Mode Selection -->
+    <div id="marksModeSection" style="background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:16px">
+      <b style="font-size:13px;display:block;margin-bottom:10px">Marking Calculation Mode:</b>
+
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px">
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:13px">
+          <input type="radio" name="marksModeRadio" value="proportional" onchange="toggleMarksModeUI()" checked style="margin-top:2px">
+          <div>
+            <b>Proportional Mode (Direct % Scaling)</b>
+            <div style="font-size:12px;color:var(--text-dim)">Marks = (Attendance % / 100) × Max Marks. (e.g. 80% = 8/10 marks)</div>
+          </div>
+        </label>
+
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:13px">
+          <input type="radio" name="marksModeRadio" value="custom_slabs" onchange="toggleMarksModeUI()" style="margin-top:2px">
+          <div>
+            <b>Custom Slabs Mode (Teacher / College Criteria)</b>
+            <div style="font-size:12px;color:var(--text-dim)">Set custom percentage ranges & marks (e.g. &lt;75%=0, 75-84%=5, 85-94%=7.5, 95-100%=10)</div>
+          </div>
+        </label>
+      </div>
+
+      <!-- Custom Slabs Editor Container -->
+      <div id="customSlabsEditor" style="display:none;background:var(--bg2);border:1px solid var(--border-soft);border-radius:10px;padding:12px;margin-top:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px">
+          <b style="font-size:12px;color:var(--violet2)">Custom Attendance Slabs / Tiers</b>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-ghost btn-sm" onclick="loadCollegeSlabPreset()" style="font-size:11px;padding:3px 8px">⚡ College 10-Mark Preset</button>
+            <button class="btn btn-ghost btn-sm" onclick="loadSchoolSlabPreset()" style="font-size:11px;padding:3px 8px">⚡ School 5-Mark Preset</button>
+          </div>
+        </div>
+
+        <table style="width:100%;font-size:12px;border-collapse:collapse;margin-bottom:10px">
+          <thead>
+            <tr style="border-bottom:1px solid var(--border);text-align:left;color:var(--text-dim)">
+              <th style="padding:4px">Min %</th>
+              <th style="padding:4px">Max %</th>
+              <th style="padding:4px">Marks</th>
+              <th style="padding:4px;text-align:right">Action</th>
+            </tr>
+          </thead>
+          <tbody id="slabsTableBody"></tbody>
+        </table>
+
+        <button class="btn btn-ghost btn-sm btn-block" onclick="addCustomSlabRow()" style="font-size:12px">+ Add Custom Slab Tier</button>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost btn-block" onclick="closeMarksModal()">Cancel</button>
+      <button class="btn btn-primary btn-block" onclick="saveMarksConfig()">Save & Apply Marks</button>
     </div>
   </div>
 </div>
 
 <!-- Backup / Restore Modal -->
 <div class="modal-backdrop" id="backupModalBackdrop">
-  <div class="modal">
-    <h2>💾 Data Backup & Restore</h2>
+  <div class="modal" style="max-width:500px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <h2 style="margin:0">💾 Data Backup & Restore</h2>
+      <button class="icon-btn" onclick="closeBackupModal()" style="font-size:18px" title="Close Modal">✕</button>
+    </div>
     <p style="font-size:13px;color:var(--text-dim);margin-bottom:20px">Export a full backup of all your classes, students, and attendance records or restore from a previously saved JSON file.</p>
     
     <div style="background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:16px">
@@ -618,938 +632,58 @@
       <button class="btn btn-ghost btn-sm btn-block" onclick="restoreDataBackup()">📤 Restore Data from File</button>
     </div>
 
+    <div class="modal-actions" style="margin-top:20px">
+      <button class="btn btn-ghost btn-block" onclick="closeBackupModal()">← Close / Go Back</button>
+    </div>
+  </div>
+</div>
+
+<!-- Bulk WhatsApp Alerts Modal -->
+<div class="modal-backdrop" id="bulkWaModalBackdrop">
+  <div class="modal" style="max-width:520px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <h2 style="margin:0;color:#25D366">💬 Bulk WhatsApp Defaulter Alerts</h2>
+      <button class="icon-btn" onclick="closeBulkWaModal()" style="font-size:18px">✕</button>
+    </div>
+    <p style="font-size:13px;color:var(--text-dim);margin-bottom:14px">Students with attendance below 75% for current selection:</p>
+    <div id="bulkWaList" style="max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;margin-bottom:16px"></div>
     <div class="modal-actions">
-      <button class="btn btn-ghost btn-block" onclick="closeBackupModal()">Close</button>
+      <button class="btn btn-ghost btn-block" onclick="copyGroupDefaulterSummary()">📋 Copy Summary for Group</button>
+      <button class="btn btn-ghost btn-block" onclick="closeBulkWaModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Smart Notifications Modal -->
+<div class="modal-backdrop" id="notifModalBackdrop">
+  <div class="modal" style="max-width:520px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <h2 style="margin:0;font-size:18px;display:flex;align-items:center;gap:8px">🔔 Notifications & Smart Alerts</h2>
+      <button class="btn btn-ghost btn-sm" onclick="markAllNotifsRead()" style="font-size:11px">Check All</button>
+    </div>
+    
+    <div id="notifListContainer" style="max-height:360px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;margin-bottom:16px;padding-right:4px"></div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost btn-block" onclick="closeNotifModal()">Close</button>
     </div>
   </div>
 </div>
 
 <div class="toast" id="toast"></div>
 
-<script>
-/* ============================================================
-   STATE
-============================================================ */
-let currentUser = null;      // { email, name }
-let appData = { groups: [] };
-let currentGroupId = null;
-let currentGroupType = 'college';
-let attMap = {}; // studentId -> bool, for the attendance form currently being filled
-let editingSessionId = null;
-let selectedStudentForHistory = null;
-
-/* ============================================================
-   THEME LOGIC
-============================================================ */
-function initTheme(){
-  const saved = localStorage.getItem('attendo_theme') || 'dark';
-  document.documentElement.setAttribute('data-theme', saved);
-  const btn = document.getElementById('themeBtn');
-  if(btn) btn.textContent = saved === 'light' ? '☀️' : '🌙';
-}
-function toggleTheme(){
-  const curr = document.documentElement.getAttribute('data-theme') || 'dark';
-  const next = curr === 'dark' ? 'light' : 'dark';
-  document.documentElement.setAttribute('data-theme', next);
-  localStorage.setItem('attendo_theme', next);
-  const btn = document.getElementById('themeBtn');
-  if(btn) btn.textContent = next === 'light' ? '☀️' : '🌙';
-  toast('Theme switched to ' + next + ' mode');
-}
-initTheme();
-
-/* ============================================================
-   STORAGE HELPERS
-============================================================ */
-async function storageGet(key){
-  try{
-    const v = window.localStorage.getItem(key);
-    return v;
-  }catch(e){ console.error('storage get failed', e); return null; }
-}
-async function storageSet(key, value){
-  try{ window.localStorage.setItem(key, value); }catch(e){ console.error('storage set failed', e); }
-}
-
-function uid(){ return Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4); }
-
-function toast(msg){
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  clearTimeout(t._timer);
-  t._timer = setTimeout(()=>t.classList.remove('show'), 2400);
-}
-
-/* ============================================================
-   AUTH
-============================================================ */
-let authMode = 'login'; // or 'signup'
-
-function toggleAuthMode(){
-  authMode = authMode === 'login' ? 'signup' : 'login';
-  document.getElementById('authError').textContent = '';
-  if(authMode === 'signup'){
-    document.getElementById('authTitle').textContent = 'Create your account';
-    document.getElementById('authSubtitle').textContent = 'Set up attendance for your classes';
-    document.getElementById('signupNameField').style.display = 'block';
-    document.getElementById('authSubmitBtn').textContent = 'Create account';
-    document.getElementById('authSwitchText').innerHTML = 'Already have an account? <span onclick="toggleAuthMode()">Log in</span>';
-  } else {
-    document.getElementById('authTitle').textContent = 'Welcome back';
-    document.getElementById('authSubtitle').textContent = 'Log in to manage your classes';
-    document.getElementById('signupNameField').style.display = 'none';
-    document.getElementById('authSubmitBtn').textContent = 'Log in';
-    document.getElementById('authSwitchText').innerHTML = 'New here? <span onclick="toggleAuthMode()">Create an account</span>';
-  }
-}
-
-async function handleAuthSubmit(){
-  const email = document.getElementById('authEmail').value.trim().toLowerCase();
-  const password = document.getElementById('authPassword').value;
-  const errEl = document.getElementById('authError');
-  errEl.textContent = '';
-
-  if(!email || !password){ errEl.textContent = 'Please fill in all fields.'; return; }
-
-  if(authMode === 'signup'){
-    const name = document.getElementById('signupName').value.trim();
-    if(!name){ errEl.textContent = 'Please enter your name.'; return; }
-    const existing = await storageGet('user:'+email);
-    if(existing){ errEl.textContent = 'An account with this email already exists.'; return; }
-    const user = { name, email, password };
-    await storageSet('user:'+email, JSON.stringify(user));
-    await storageSet('data:'+email, JSON.stringify({ groups: [] }));
-    currentUser = { name, email };
-    toast('Account created — welcome!');
-    enterApp();
-  } else {
-    const raw = await storageGet('user:'+email);
-    if(!raw){ errEl.textContent = 'No account found with this email.'; return; }
-    const user = JSON.parse(raw);
-    if(user.password !== password){ errEl.textContent = 'Incorrect password.'; return; }
-    currentUser = { name: user.name, email: user.email };
-    toast('Welcome back, '+user.name.split(' ')[0]+'!');
-    enterApp();
-  }
-}
-
-function logout(){
-  currentUser = null;
-  appData = { groups: [] };
-  document.getElementById('topbar').style.display = 'none';
-  document.getElementById('dashboardScreen').style.display = 'none';
-  document.getElementById('workspaceScreen').style.display = 'none';
-  document.getElementById('authScreen').style.display = 'flex';
-  document.getElementById('authPassword').value = '';
-}
-
-async function enterApp(){
-  const raw = await storageGet('data:'+currentUser.email);
-  appData = raw ? JSON.parse(raw) : { groups: [] };
-  document.getElementById('authScreen').style.display = 'none';
-  document.getElementById('topbar').style.display = 'flex';
-  document.getElementById('userChip').textContent = currentUser.name + '  ·  ' + currentUser.email;
-  goToDashboard();
-}
-
-async function persist(){
-  await storageSet('data:'+currentUser.email, JSON.stringify(appData));
-}
-
-/* ============================================================
-   DASHBOARD
-============================================================ */
-function goToDashboard(){
-  document.getElementById('workspaceScreen').style.display = 'none';
-  document.getElementById('dashboardScreen').style.display = 'block';
-  renderGroupGrid();
-}
-
-function groupLabel(g){
-  if(g.type === 'college') return (g.department || 'Department') + ' — ' + (g.semester || '');
-  if(g.type === 'school_junior') return 'Class ' + (g.className || '') + ' — ' + (g.subject || '');
-  return (g.stream || '') + ' — ' + (g.className || '');
-}
-function groupInstitution(g){
-  return g.type === 'college' ? (g.collegeName || 'College') : (g.schoolName || 'School');
-}
-
-function renderGroupGrid(){
-  const grid = document.getElementById('groupGrid');
-  grid.innerHTML = '';
-  const query = (document.getElementById('dashSearch')?.value || '').toLowerCase().trim();
-
-  const filtered = appData.groups.filter(g => {
-    if(!query) return true;
-    const inst = groupInstitution(g).toLowerCase();
-    const lbl = groupLabel(g).toLowerCase();
-    return inst.includes(query) || lbl.includes(query);
-  });
-
-  filtered.forEach(g=>{
-    const card = document.createElement('div');
-    card.className = 'group-card';
-    card.onclick = ()=>openGroup(g.id);
-    const totalSessions = g.sessions.length;
-    card.innerHTML = `
-      <span class="badge">${g.type === 'college' ? 'College' : (g.type === 'school_junior' ? 'School (1–10)' : 'School')}</span>
-      <h3>${groupInstitution(g)}</h3>
-      <p>${groupLabel(g)}</p>
-      <div class="stats">
-        <span><b>${g.students.length}</b> students</span>
-        <span><b>${totalSessions}</b> classes taken</span>
-      </div>`;
-    grid.appendChild(card);
-  });
-  const newCard = document.createElement('div');
-  newCard.className = 'new-card';
-  newCard.onclick = openNewGroupModal;
-  newCard.innerHTML = `<div class="plus">+</div><div>New class</div>`;
-  grid.appendChild(newCard);
-}
-
-/* ============================================================
-   NEW GROUP MODAL
-============================================================ */
-function openNewGroupModal(){
-  document.getElementById('groupModalBackdrop').classList.add('show');
-  setGroupType('college');
-}
-function closeGroupModal(){
-  document.getElementById('groupModalBackdrop').classList.remove('show');
-}
-function setGroupType(type){
-  currentGroupType = type;
-  document.getElementById('typeCollege').classList.toggle('active', type==='college');
-  document.getElementById('typeSchool').classList.toggle('active', type==='school');
-  document.getElementById('typeSchoolJunior').classList.toggle('active', type==='school_junior');
-  document.getElementById('collegeFields').style.display = type==='college' ? 'block' : 'none';
-  document.getElementById('schoolFields').style.display = type==='school' ? 'block' : 'none';
-  document.getElementById('schoolJuniorFields').style.display = type==='school_junior' ? 'block' : 'none';
-}
-
-async function createGroup(){
-  let g;
-  if(currentGroupType === 'college'){
-    const collegeName = document.getElementById('collegeName').value.trim();
-    const collegeDept = document.getElementById('collegeDept').value.trim();
-    const collegeSem = document.getElementById('collegeSem').value.trim();
-    if(!collegeName || !collegeDept){ toast('Please fill in college name and department.'); return; }
-    g = { id: uid(), type:'college', collegeName, department:collegeDept, semester:collegeSem, students:[], sessions:[] };
-  } else if(currentGroupType === 'school_junior'){
-    const schoolName = document.getElementById('juniorSchoolName').value.trim();
-    const juniorClass = document.getElementById('juniorClass').value;
-    const juniorSubject = document.getElementById('juniorSubject').value;
-    if(!schoolName){ toast('Please fill in the school name.'); return; }
-    g = { id: uid(), type:'school_junior', schoolName, className:juniorClass, subject:juniorSubject, students:[], sessions:[] };
-  } else {
-    const schoolName = document.getElementById('schoolName').value.trim();
-    const schoolClass = document.getElementById('schoolClass').value;
-    const schoolStream = document.getElementById('schoolStream').value;
-    if(!schoolName){ toast('Please fill in the school name.'); return; }
-    g = { id: uid(), type:'school', schoolName, className:schoolClass, stream:schoolStream, students:[], sessions:[] };
-  }
-  appData.groups.push(g);
-  await persist();
-  closeGroupModal();
-  ['collegeName','collegeDept','collegeSem','schoolName','juniorSchoolName'].forEach(id=>document.getElementById(id).value='');
-  renderGroupGrid();
-  toast('Class created.');
-}
-
-/* ============================================================
-   GROUP WORKSPACE
-============================================================ */
-function getGroup(){ return appData.groups.find(g=>g.id===currentGroupId); }
-
-function openGroup(id){
-  currentGroupId = id;
-  editingSessionId = null;
-  if(document.getElementById('editSessionBadge')) document.getElementById('editSessionBadge').style.display = 'none';
-  if(document.getElementById('saveSessionBtn')) document.getElementById('saveSessionBtn').textContent = 'Save attendance';
-
-  document.getElementById('dashboardScreen').style.display = 'none';
-  document.getElementById('workspaceScreen').style.display = 'block';
-  const g = getGroup();
-  document.getElementById('wsTitle').textContent = groupInstitution(g);
-  document.getElementById('wsSubtitle').textContent = groupLabel(g);
-  switchTab('students');
-  const today = new Date().toISOString().slice(0,10);
-  document.getElementById('attDate').value = today;
-  document.getElementById('attSubject').value = (g.type === 'school_junior' && g.subject !== 'General (All Subjects)') ? g.subject : '';
-  document.getElementById('reportMonth').value = today.slice(0,7);
-}
-
-function switchTab(tab){
-  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===tab));
-  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
-  document.getElementById('panel-'+tab).classList.add('active');
-  if(tab==='students') renderStudents();
-  if(tab==='attendance') renderAttendanceForm();
-  if(tab==='reports'){ populateSubjectOptions(); renderReport(); }
-}
-
-function onReportMonthChange(){
-  populateSubjectOptions();
-  renderReport();
-}
-
-function populateSubjectOptions(){
-  const g = getGroup();
-  const month = document.getElementById('reportMonth').value;
-  const subjects = Array.from(new Set(
-    g.sessions.filter(s => s.date.startsWith(month)).map(s => s.subject)
-  )).sort();
-  const sel = document.getElementById('reportSubject');
-  const prev = sel.value;
-  sel.innerHTML = '<option value="__all__">All subjects</option>' +
-    subjects.map(sub => `<option value="${sub}">${sub}</option>`).join('');
-  if(subjects.includes(prev)) sel.value = prev;
-}
-
-/* ---------- Students ---------- */
-function renderStudents(){
-  const g = getGroup();
-  const body = document.getElementById('studentTableBody');
-  body.innerHTML = '';
-
-  const query = (document.getElementById('studentSearch')?.value || '').toLowerCase().trim();
-  const sorted = g.students.slice().sort((a,b)=>a.rollNo.localeCompare(b.rollNo,undefined,{numeric:true}));
-  const filtered = sorted.filter(s => {
-    if(!query) return true;
-    return s.name.toLowerCase().includes(query) || s.rollNo.toLowerCase().includes(query) || (s.phone && s.phone.includes(query));
-  });
-
-  document.getElementById('studentsEmpty').style.display = filtered.length ? 'none' : 'block';
-
-  filtered.forEach(s=>{
-    const tr = document.createElement('tr');
-    tr.className = 'clickable';
-    tr.onclick = (e) => {
-      if(!e.target.closest('button')) openStudentHistoryModal(s.id);
-    };
-    tr.innerHTML = `<td><span class="roll-pill">${s.rollNo}</span></td>
-      <td><b>${s.name}</b></td>
-      <td><span style="font-size:13px;color:var(--text-dim)">${s.phone ? '📱 ' + s.phone : '<i style="opacity:0.6">Not added</i>'}</span></td>
-      <td class="row-actions">
-        <button class="icon-btn" style="color:var(--cyan)" onclick="openStudentHistoryModal('${s.id}')">Profile & History</button>
-        <button class="icon-btn" onclick="deleteStudent('${s.id}')">Remove</button>
-      </td>`;
-    body.appendChild(tr);
-  });
-}
-
-async function addStudent(){
-  const nameEl = document.getElementById('newStudentName');
-  const rollEl = document.getElementById('newStudentRoll');
-  const phoneEl = document.getElementById('newStudentPhone');
-  const name = nameEl.value.trim();
-  const roll = rollEl.value.trim();
-  const phone = phoneEl ? phoneEl.value.trim() : '';
-  if(!name || !roll){ toast('Enter both name and roll number.'); return; }
-  const g = getGroup();
-  if(g.students.some(s=>s.rollNo.toLowerCase()===roll.toLowerCase())){
-    toast('That roll number is already used in this class.'); return;
-  }
-  g.students.push({ id: uid(), name, rollNo: roll, phone });
-  await persist();
-  nameEl.value=''; rollEl.value=''; if(phoneEl) phoneEl.value='';
-  renderStudents();
-  renderGroupGrid();
-}
-
-async function deleteStudent(sid){
-  if(!confirm('Are you sure you want to remove this student?')) return;
-  const g = getGroup();
-  g.students = g.students.filter(s=>s.id!==sid);
-  g.sessions.forEach(s=>{ delete s.records[sid]; });
-  await persist();
-  renderStudents();
-  renderGroupGrid();
-}
-
-/* ---------- CSV Import & Export ---------- */
-function openCsvModal(){ document.getElementById('csvModalBackdrop').classList.add('show'); }
-function closeCsvModal(){
-  document.getElementById('csvModalBackdrop').classList.remove('show');
-  document.getElementById('csvInput').value = '';
-  if(document.getElementById('csvFileInput')) document.getElementById('csvFileInput').value = '';
-}
-
-async function handleCsvFileSelect(e){
-  const file = e.target.files && e.target.files[0];
-  if(file){
-    try {
-      const text = await file.text();
-      document.getElementById('csvInput').value = text;
-      toast('CSV file loaded into preview.');
-    } catch(err){
-      console.error(err);
-      toast('Could not read CSV file.');
-    }
-  }
-}
-
-async function processCsvImport(){
-  const text = document.getElementById('csvInput').value.trim();
-  const fileInput = document.getElementById('csvFileInput');
-  let content = text;
-
-  if(!content && fileInput && fileInput.files && fileInput.files[0]){
-    try { content = await fileInput.files[0].text(); } catch(e){}
-  }
-
-  if(!content){ toast('Please paste CSV text or select a file.'); return; }
-
-  const lines = content.split(/\r?\n/);
-  const g = getGroup();
-  if(!g){ toast('No active class selected.'); return; }
-
-  let addedCount = 0;
-  let skippedCount = 0;
-
-  lines.forEach(line => {
-    line = line.trim();
-    if(!line) return;
-    const parts = line.split(/[,;\t]/).map(p => p.trim().replace(/^["']|["']$/g, ''));
-    if(parts.length >= 2){
-      if(parts[0].toLowerCase().includes('roll') && parts[1].toLowerCase().includes('name')) return;
-      let roll = parts[0];
-      let name = parts[1];
-      let phone = parts[2] || '';
-      if(parts[1].toLowerCase().includes('roll') && parts[0].toLowerCase().includes('name')){
-        name = parts[0];
-        roll = parts[1];
-      }
-      if(roll && name && !g.students.some(s => s.rollNo.toLowerCase() === roll.toLowerCase())){
-        g.students.push({ id: uid(), name, rollNo: roll, phone });
-        addedCount++;
-      } else {
-        skippedCount++;
-      }
-    }
-  });
-
-  await persist();
-  closeCsvModal();
-  renderStudents();
-  renderGroupGrid();
-  toast(`Imported ${addedCount} students (${skippedCount} skipped/duplicates)`);
-}
-
-function exportStudentsCsv(){
-  const g = getGroup();
-  if(!g.students.length){ toast('No students to export.'); return; }
-  let csv = 'Roll No,Name,Phone\n';
-  g.students.slice().sort((a,b)=>a.rollNo.localeCompare(b.rollNo,undefined,{numeric:true})).forEach(s => {
-    csv += `"${s.rollNo}","${s.name}","${s.phone || ''}"\n`;
-  });
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `students-${groupInstitution(g).replace(/\s+/g,'_')}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
-  toast('Student roster exported to CSV.');
-}
-
-/* ---------- Attendance & Session Edit/Delete ---------- */
-function renderAttendanceForm(){
-  const g = getGroup();
-  if(!editingSessionId){
-    attMap = {};
-    g.students.forEach(s=> attMap[s.id] = true);
-  }
-  const list = document.getElementById('attList');
-  list.innerHTML = '';
-  if(!g.students.length){
-    list.innerHTML = `<div class="empty-state"><div class="big">🧑‍🎓</div>Add students first under the Students tab.</div>`;
-  }
-  g.students.slice().sort((a,b)=>a.rollNo.localeCompare(b.rollNo,undefined,{numeric:true})).forEach(s=>{
-    const isPresent = attMap[s.id] !== undefined ? attMap[s.id] : true;
-    const row = document.createElement('div');
-    row.className = 'att-row';
-    row.innerHTML = `
-      <div class="who"><span class="roll-pill">${s.rollNo}</span><span>${s.name}</span></div>
-      <div class="att-toggle" id="toggle-${s.id}">
-        <button class="present ${isPresent ? 'on' : ''}" onclick="setAtt('${s.id}',true)">Present</button>
-        <button class="absent ${!isPresent ? 'on' : ''}" onclick="setAtt('${s.id}',false)">Absent</button>
-      </div>`;
-    list.appendChild(row);
-  });
-  renderSessionList();
-}
-
-function setAtt(sid, present){
-  attMap[sid] = present;
-  const t = document.getElementById('toggle-'+sid);
-  if(t){
-    t.querySelector('.present').classList.toggle('on', present);
-    t.querySelector('.absent').classList.toggle('on', !present);
-  }
-}
-
-function markAll(present){
-  const g = getGroup();
-  g.students.forEach(s=> setAtt(s.id, present));
-}
-
-function editSession(sessionId){
-  const g = getGroup();
-  const sess = g.sessions.find(s => s.id === sessionId);
-  if(!sess) return;
-  editingSessionId = sessionId;
-  document.getElementById('attDate').value = sess.date;
-  document.getElementById('attSubject').value = sess.subject;
-  document.getElementById('editSessionBadge').style.display = 'inline-flex';
-  document.getElementById('saveSessionBtn').textContent = 'Update Attendance';
-
-  attMap = {};
-  g.students.forEach(s => {
-    attMap[s.id] = sess.records[s.id] !== undefined ? sess.records[s.id] : true;
-  });
-
-  renderAttendanceForm();
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-function cancelSessionEdit(){
-  editingSessionId = null;
-  document.getElementById('editSessionBadge').style.display = 'none';
-  document.getElementById('saveSessionBtn').textContent = 'Save attendance';
-  renderAttendanceForm();
-}
-
-async function deleteSession(sessionId){
-  if(!confirm('Are you sure you want to delete this class attendance session?')) return;
-  const g = getGroup();
-  g.sessions = g.sessions.filter(s => s.id !== sessionId);
-  if(editingSessionId === sessionId) cancelSessionEdit();
-  await persist();
-  renderSessionList();
-  renderGroupGrid();
-  if(document.getElementById('panel-reports').classList.contains('active')) renderReport();
-  toast('Session deleted.');
-}
-
-async function saveSession(){
-  const g = getGroup();
-  if(!g.students.length){ toast('No students to mark attendance for.'); return; }
-  const date = document.getElementById('attDate').value;
-  const subject = document.getElementById('attSubject').value.trim() || 'Class';
-  if(!date){ toast('Pick a date.'); return; }
-
-  const records = {};
-  g.students.forEach(s=> records[s.id] = !!attMap[s.id]);
-
-  if(editingSessionId){
-    const idx = g.sessions.findIndex(s => s.id === editingSessionId);
-    if(idx !== -1){
-      g.sessions[idx] = { id: editingSessionId, date, subject, records };
-    }
-    editingSessionId = null;
-    document.getElementById('editSessionBadge').style.display = 'none';
-    document.getElementById('saveSessionBtn').textContent = 'Save attendance';
-    toast('Attendance session updated.');
-  } else {
-    g.sessions.push({ id: uid(), date, subject, records });
-    toast('Attendance saved.');
-  }
-
-  await persist();
-  document.getElementById('attSubject').value = '';
-  renderSessionList();
-  renderGroupGrid();
-}
-
-function renderSessionList(){
-  const g = getGroup();
-  const wrap = document.getElementById('sessionList');
-  wrap.innerHTML = '';
-  if(!g.sessions.length) return;
-  const sorted = g.sessions.slice().sort((a,b)=> b.date.localeCompare(a.date));
-  sorted.slice(0,10).forEach(s=>{
-    const presentCount = Object.values(s.records).filter(Boolean).length;
-    const div = document.createElement('div');
-    div.className = 'session-item';
-    div.innerHTML = `
-      <span><b>${s.date}</b> — ${s.subject} (${presentCount}/${g.students.length} present)</span>
-      <div style="display:flex;gap:6px">
-        <button class="icon-btn" style="color:var(--violet2)" onclick="editSession('${s.id}')">Edit</button>
-        <button class="icon-btn" onclick="deleteSession('${s.id}')">Delete</button>
-      </div>`;
-    wrap.appendChild(div);
-  });
-}
-
-/* ---------- Student Profile & History Modal ---------- */
-function openStudentHistoryModal(studentId){
-  const g = getGroup();
-  const student = g.students.find(s => s.id === studentId);
-  if(!student) return;
-  selectedStudentForHistory = student;
-
-  document.getElementById('studentHistoryTitle').textContent = student.name;
-  document.getElementById('studentHistorySubtitle').textContent = `Roll No: ${student.rollNo} • ${groupInstitution(g)}`;
-  if(document.getElementById('shPhoneInput')){
-    document.getElementById('shPhoneInput').value = student.phone || '';
-  }
-
-  const monthSessions = getMonthSessions();
-  const targetSessions = monthSessions.length ? monthSessions : g.sessions;
-  const total = targetSessions.length;
-  const presentCount = targetSessions.filter(s => s.records[student.id]).length;
-  const absentCount = total - presentCount;
-  const pct = total ? Math.round((presentCount / total) * 100) : 0;
-
-  document.getElementById('shTotal').textContent = total;
-  document.getElementById('shPresent').textContent = presentCount;
-  document.getElementById('shAbsent').textContent = absentCount;
-  document.getElementById('shPct').textContent = pct + '%';
-
-  const logContainer = document.getElementById('shLog');
-  logContainer.innerHTML = '';
-
-  if(!targetSessions.length){
-    logContainer.innerHTML = '<div style="color:var(--text-dim);font-size:13px;text-align:center;padding:12px">No attendance sessions recorded yet.</div>';
-  } else {
-    targetSessions.slice().sort((a,b)=>b.date.localeCompare(a.date)).forEach(s => {
-      const isPresent = s.records[student.id];
-      const div = document.createElement('div');
-      div.className = 'history-log-item';
-      div.innerHTML = `
-        <span><b>${s.date}</b> — ${s.subject}</span>
-        <span class="${isPresent ? 'badge-success' : 'badge-danger'}">${isPresent ? 'Present' : 'Absent'}</span>
-      `;
-      logContainer.appendChild(div);
-    });
-  }
-
-  document.getElementById('studentHistoryModalBackdrop').classList.add('show');
-}
-
-function closeStudentHistoryModal(){
-  document.getElementById('studentHistoryModalBackdrop').classList.remove('show');
-}
-
-async function saveStudentPhoneFromModal(){
-  if(!selectedStudentForHistory) return;
-  const input = document.getElementById('shPhoneInput');
-  if(!input) return;
-  const phone = input.value.trim();
-  selectedStudentForHistory.phone = phone;
-  await persist();
-  renderStudents();
-  toast('Student phone number saved!');
-}
-
-function sendWhatsAppAlert(targetStudent){
-  const student = targetStudent || selectedStudentForHistory;
-  if(!student) return;
-  const g = getGroup();
-  const monthSessions = getMonthSessions();
-  const targetSessions = monthSessions.length ? monthSessions : g.sessions;
-  const total = targetSessions.length;
-  const presentCount = targetSessions.filter(s => s.records[student.id]).length;
-  const pct = total ? Math.round((presentCount / total) * 100) : 0;
-  const subjectLabel = selectedSubjectLabel();
-
-  const msg = `Notice regarding Attendance:\nStudent: ${student.name} (Roll No: ${student.rollNo})\nClass: ${groupInstitution(g)} (${groupLabel(g)})\nSubject: ${subjectLabel}\nAttendance: ${presentCount}/${total} classes (${pct}%).\nStatus: ${pct < 75 ? '⚠️ Shortage Warning (Below 75%)' : 'Good Standing'}`;
-
-  const cleanPhone = (student.phone || '').replace(/\D/g, '');
-  let phoneParam = '';
-  if(cleanPhone.length >= 10){
-    phoneParam = cleanPhone.length === 10 ? '91' + cleanPhone : cleanPhone;
-  }
-
-  const whatsappUrl = phoneParam 
-    ? `https://wa.me/${phoneParam}?text=${encodeURIComponent(msg)}`
-    : `https://wa.me/?text=${encodeURIComponent(msg)}`;
-
-  window.open(whatsappUrl, '_blank');
-}
-
-function sendWhatsAppAlertBySid(sid){
-  const g = getGroup();
-  const student = g.students.find(s => s.id === sid);
-  if(student) sendWhatsAppAlert(student);
-}
-
-function openBulkWaModal(){
-  const { rows } = computeReport();
-  const defaulters = rows.filter(r => r.pct < 75);
-  const container = document.getElementById('bulkWaList');
-  container.innerHTML = '';
-
-  if(!rows.length){
-    container.innerHTML = '<div style="color:var(--text-dim);padding:20px;text-align:center">No attendance sessions recorded for this selection.</div>';
-  } else if(!defaulters.length){
-    container.innerHTML = '<div style="color:var(--green);padding:20px;text-align:center;font-weight:600">🎉 Great news! All students have attendance >= 75%. No defaulters.</div>';
-  } else {
-    const g = getGroup();
-    defaulters.forEach(r => {
-      const student = g.students.find(s => s.id === r.studentId);
-      const phone = student?.phone || '';
-      const div = document.createElement('div');
-      div.className = 'history-log-item';
-      div.style.alignItems = 'center';
-      div.style.justifyContent = 'space-between';
-      div.style.gap = '10px';
-      div.innerHTML = `
-        <div>
-          <div style="font-weight:600;font-size:14px">${r.name} <span class="roll-pill">${r.rollNo}</span></div>
-          <div style="font-size:12px;color:var(--text-dim);margin-top:2px">Attendance: <b style="color:var(--red)">${r.pct}%</b> (${r.present}/${r.total}) ${phone ? '• 📱 ' + phone : '• <i>No Phone</i>'}</div>
-        </div>
-        <button class="btn btn-primary btn-sm" onclick="sendWhatsAppAlertBySid('${r.studentId}')" style="background:#25D366;border:none;font-size:12px;padding:6px 12px;white-space:nowrap">
-          💬 Send Alert
-        </button>
-      `;
-      container.appendChild(div);
-    });
-  }
-
-  document.getElementById('bulkWaModalBackdrop').classList.add('show');
-}
-
-function closeBulkWaModal(){
-  document.getElementById('bulkWaModalBackdrop').classList.remove('show');
-}
-
-function copyGroupDefaulterSummary(){
-  const g = getGroup();
-  const { total, rows } = computeReport();
-  const defaulters = rows.filter(r => r.pct < 75);
-  const subjectLabel = selectedSubjectLabel();
-  const monthLabel = document.getElementById('reportMonth').value;
-
-  let text = `⚠️ ATTENDANCE SHORTAGE WARNING\nInstitution: ${groupInstitution(g)}\nClass: ${groupLabel(g)}\nMonth: ${monthLabel} | Subject: ${subjectLabel}\nTotal Classes Held: ${total}\n\n`;
-
-  if(!defaulters.length){
-    text += `✅ All students have achieved satisfactory attendance (75%+).\n`;
-  } else {
-    text += `The following students have attendance below 75%:\n`;
-    defaulters.forEach((d, idx) => {
-      text += `${idx + 1}. ${d.name} (Roll: ${d.rollNo}) — ${d.pct}% (${d.present}/${d.total} present)\n`;
-    });
-    text += `\nKindly contact the department / class coordinator immediately.`;
-  }
-
-  navigator.clipboard.writeText(text).then(() => {
-    toast('Defaulter list summary copied to clipboard! Paste in WhatsApp Group.');
-  }).catch(() => {
-    toast('Copied defaulter summary to clipboard.');
-  });
-}
-
-/* ---------- Reports & Defaulter Filter ---------- */
-function getMonthSessions(){
-  const g = getGroup();
-  const month = document.getElementById('reportMonth').value; // yyyy-mm
-  if(!month) return [];
-  const subjectEl = document.getElementById('reportSubject');
-  const subject = subjectEl ? subjectEl.value : '__all__';
-  return g.sessions.filter(s=> s.date.startsWith(month) && (subject === '__all__' || s.subject === subject));
-}
-
-function selectedSubjectLabel(){
-  const sel = document.getElementById('reportSubject');
-  if(!sel || sel.value === '__all__') return 'All subjects';
-  return sel.value;
-}
-
-function computeReport(){
-  const g = getGroup();
-  const sessions = getMonthSessions();
-  const total = sessions.length;
-  const threshold = parseInt(document.getElementById('reportThreshold')?.value || '100', 10);
-
-  let rows = g.students.map(s=>{
-    const present = sessions.filter(sess => sess.records[s.id]).length;
-    const pct = total ? Math.round((present/total)*100) : 0;
-    return { studentId: s.id, rollNo: s.rollNo, name: s.name, present, total, pct };
-  }).sort((a,b)=>a.rollNo.localeCompare(b.rollNo,undefined,{numeric:true}));
-
-  if(threshold < 100){
-    rows = rows.filter(r => r.pct < threshold);
-  }
-
-  return { total, rows };
-}
-
-function resetAndRefreshReport(){
-  const today = new Date().toISOString().slice(0,7);
-  document.getElementById('reportMonth').value = today;
-  populateSubjectOptions();
-  document.getElementById('reportSubject').value = '__all__';
-  document.getElementById('reportThreshold').value = '100';
-  renderReport();
-  toast('Report filters reset to initial state.');
-}
-
-function renderReport(){
-  const g = getGroup();
-  const { total, rows } = computeReport();
-  const summary = document.getElementById('reportSummary');
-  const avgPct = rows.length ? Math.round(rows.reduce((a,r)=>a+r.pct,0)/rows.length) : 0;
-  summary.innerHTML = `
-    <div class="stat-card"><div class="n">${total}</div><div class="l">Classes held</div></div>
-    <div class="stat-card"><div class="n">${rows.length}</div><div class="l">Students listed</div></div>
-    <div class="stat-card"><div class="n">${avgPct}%</div><div class="l">Average attendance</div></div>`;
-
-  const daysWrap = document.getElementById('classDaysWrap');
-  const sessions = getMonthSessions().slice().sort((a,b)=>a.date.localeCompare(b.date));
-  if(sessions.length){
-    const chips = sessions.map(s=>{
-      const d = new Date(s.date+'T00:00:00');
-      const label = d.toLocaleDateString('en-IN',{ day:'numeric', month:'short' });
-      return `<span class="classday-chip" title="${s.subject}">${label}</span>`;
-    }).join('');
-    daysWrap.innerHTML = `<div class="classdays-label">Classes counted this month (${sessions.length})</div><div class="classdays-row">${chips}</div>`;
-  } else {
-    daysWrap.innerHTML = '';
-  }
-
-  const body = document.getElementById('reportTableBody');
-  body.innerHTML = '';
-  document.getElementById('reportEmpty').style.display = total ? (rows.length ? 'none' : 'block') : 'block';
-
-  rows.forEach(r=>{
-    const barClass = r.pct < 50 ? 'pct-low' : (r.pct < 75 ? 'pct-mid' : '');
-    const tr = document.createElement('tr');
-    tr.className = 'clickable';
-    tr.onclick = (e) => {
-      if(!e.target.closest('button')) openStudentHistoryModal(r.studentId);
-    };
-    tr.innerHTML = `
-      <td><span class="roll-pill">${r.rollNo}</span></td>
-      <td><b>${r.name}</b> ${r.pct < 75 ? '<span class="badge-danger" style="margin-left:6px">Shortage</span>' : ''}</td>
-      <td>${r.present}</td>
-      <td>${r.total}</td>
-      <td><span class="pct-bar ${barClass}"><i style="width:${r.pct}%"></i></span>${r.pct}%</td>
-      <td><button class="icon-btn" style="color:var(--cyan)" onclick="openStudentHistoryModal('${r.studentId}')">View History</button></td>`;
-    body.appendChild(tr);
-  });
-}
-
-function downloadPdf(){
-  const g = getGroup();
-  const { total, rows } = computeReport();
-  const subjectLabel = selectedSubjectLabel();
-  if(!total){ toast('No classes recorded for this month / subject yet.'); return; }
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF();
-  doc.setFontSize(16);
-  doc.text('Attendance report', 14, 18);
-  doc.setFontSize(10);
-  doc.setTextColor(90);
-  doc.text(`${groupInstitution(g)}  |  ${groupLabel(g)}`, 14, 25);
-  doc.text(`Month: ${document.getElementById('reportMonth').value}   |   Subject: ${subjectLabel}   |   Classes held: ${total}`, 14, 31);
-
-  const sessions = getMonthSessions().slice().sort((a,b)=>a.date.localeCompare(b.date));
-  const sessionLine = sessions.map(s=>{
-    const d = new Date(s.date+'T00:00:00');
-    const label = d.toLocaleDateString('en-IN',{ day:'numeric', month:'short' });
-    return subjectLabel === 'All subjects' ? `${label} (${s.subject})` : label;
-  }).join(',  ');
-  doc.setFontSize(9);
-  const wrapped = doc.splitTextToSize(`Classes: ${sessionLine}`, 180);
-  doc.text(wrapped, 14, 37);
-  const tableStartY = 37 + (wrapped.length * 4) + 6;
-
-  doc.autoTable({
-    startY: tableStartY,
-    head: [['Roll no.', 'Name', 'Present', 'Total classes', 'Attendance %']],
-    body: rows.map(r=>[r.rollNo, r.name, r.present, r.total, r.pct+'%']),
-    styles: { fontSize: 10 },
-    headStyles: { fillColor: [124,58,237] },
-  });
-
-  const fileSubject = subjectLabel === 'All subjects' ? 'all-subjects' : subjectLabel.replace(/\s+/g,'_');
-  doc.save(`attendance-${groupInstitution(g).replace(/\s+/g,'_')}-${fileSubject}-${document.getElementById('reportMonth').value}.pdf`);
-  toast('PDF downloaded.');
-}
-
-function downloadCsvMatrix(){
-  const g = getGroup();
-  const sessions = getMonthSessions().slice().sort((a,b)=>a.date.localeCompare(b.date));
-  const { rows } = computeReport();
-  if(!rows.length){ toast('No data to export.'); return; }
-
-  let csv = 'Roll No,Name,' + sessions.map(s => `"${s.date} (${s.subject.replace(/"/g,'""')})"`).join(',') + ',Total Present,Total Classes,Percentage\n';
-
-  rows.forEach(r => {
-    let rowStr = `"${r.rollNo}","${r.name}",`;
-    const sStatuses = sessions.map(s => s.records[r.studentId] ? 'P' : 'A');
-    rowStr += sStatuses.join(',') + `,${r.present},${r.total},${r.pct}%\n`;
-    csv += rowStr;
-  });
-
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `attendance-matrix-${groupInstitution(g).replace(/\s+/g,'_')}-${document.getElementById('reportMonth').value}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
-  toast('Attendance Matrix exported to CSV.');
-}
-
-/* ---------- Backup & Restore ---------- */
-function openBackupModal(){ document.getElementById('backupModalBackdrop').classList.add('show'); }
-function closeBackupModal(){ document.getElementById('backupModalBackdrop').classList.remove('show'); }
-
-function downloadDataBackup(){
-  if(!currentUser){ toast('Please log in first.'); return; }
-  const backup = {
-    user: currentUser,
-    data: appData,
-    exportDate: new Date().toISOString(),
-    version: '1.1'
-  };
-  const jsonStr = JSON.stringify(backup, null, 2);
-  const blob = new Blob([jsonStr], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `attendo-backup-${currentUser.email}-${new Date().toISOString().slice(0,10)}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-  toast('Backup downloaded successfully.');
-}
-
-async function restoreDataBackup(){
-  const fileInput = document.getElementById('backupFileInput');
-  if(!fileInput || !fileInput.files || !fileInput.files[0]){
-    toast('Please select a JSON backup file.');
-    return;
-  }
-  try {
-    const text = await fileInput.files[0].text();
-    const backup = JSON.parse(text);
-    if(backup.data && Array.isArray(backup.data.groups)){
-      appData = backup.data;
-      await persist();
-      closeBackupModal();
-      if(currentGroupId) openGroup(currentGroupId);
-      else goToDashboard();
-      toast('Data restored successfully!');
-    } else {
-      toast('Invalid backup file format.');
-    }
-  } catch(e) {
-    console.error(e);
-    toast('Failed to parse backup file.');
-  }
-}
-
-/* ---------- PWA: register service worker ---------- */
-if('serviceWorker' in navigator){
-  window.addEventListener('load', ()=>{
-    navigator.serviceWorker.register('service-worker.js').catch(e=>console.log('SW registration failed', e));
-  });
-}
-</script>
+<!-- JavaScript Architecture Modules -->
+<script src="js/config.js?v=1.4"></script>
+<script src="js/storage.js?v=1.4"></script>
+<script src="js/auth.js?v=1.4"></script>
+<script src="js/dashboard.js?v=1.4"></script>
+<script src="js/workspace.js?v=1.4"></script>
+<script src="js/reports.js?v=1.4"></script>
+<script src="js/marks.js?v=1.4"></script>
+<script src="js/certificates.js?v=1.4"></script>
+<script src="js/qr-attendance.js?v=1.4"></script>
+<script src="js/student-portal.js?v=1.4"></script>
+<script src="js/notifications.js?v=1.4"></script>
+<script src="js/app.js?v=1.4"></script>
 </body>
 </html>

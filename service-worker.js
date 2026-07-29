@@ -1,12 +1,27 @@
-const CACHE_NAME = "attendo-cache-v3";
+const CACHE_NAME = "attendo-cache-v11";
 const ASSETS = [
   "./",
   "./index.html",
   "./manifest.json",
   "./icon-192.png",
   "./icon-512.png",
+  "./css/styles.css",
+  "./js/config.js",
+  "./js/storage.js",
+  "./js/auth.js",
+  "./js/dashboard.js",
+  "./js/workspace.js",
+  "./js/reports.js",
+  "./js/marks.js",
+  "./js/certificates.js",
+  "./js/qr-attendance.js",
+  "./js/student-portal.js",
+  "./js/notifications.js",
+  "./js/app.js",
   "./jspdf.umd.min.js",
-  "./jspdf.plugin.autotable.min.js"
+  "./jspdf.plugin.autotable.min.js",
+  "./xlsx.full.min.js",
+  "./qrcode.min.js"
 ];
 
 self.addEventListener("install", (event) => {
