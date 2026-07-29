@@ -215,18 +215,12 @@ function downloadPdf(){
     
     doc.saveGraphicsState();
     const instText = institution.toUpperCase();
-    let watermarkFontSize = Math.floor(750 / Math.max(instText.length, 10));
-    watermarkFontSize = Math.min(46, Math.max(26, watermarkFontSize));
-
-    if(doc.GState){
-      try {
-        doc.setGState(new doc.GState({ opacity: 0.07 }));
-      } catch(e){}
-    }
+    let watermarkFontSize = Math.floor(700 / Math.max(instText.length, 10));
+    watermarkFontSize = Math.min(38, Math.max(22, watermarkFontSize));
 
     doc.setFontSize(watermarkFontSize);
     doc.setFont("helvetica", "bold");
-    doc.setTextColor(242, 244, 252);
+    doc.setTextColor(215, 218, 235);
     
     doc.text(instText, pageWidth / 2, pageHeight / 2 + 10, { align: 'center', angle: 22 });
     doc.restoreGraphicsState();

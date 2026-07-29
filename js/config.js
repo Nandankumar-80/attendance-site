@@ -2,6 +2,7 @@
    CONFIG & FIREBASE INITIALIZATION
 ============================================================ */
 let firebaseDb = null;
+let firebaseAnalytics = null;
 
 function initCloudDatabase(){
   try {
@@ -18,8 +19,10 @@ function initCloudDatabase(){
     if(window.firebase && !firebase.apps.length){
       firebase.initializeApp(firebaseConfig);
       firebaseDb = firebase.firestore();
+      if(typeof firebase.analytics === 'function') firebaseAnalytics = firebase.analytics();
     } else if(window.firebase){
       firebaseDb = firebase.firestore();
+      if(typeof firebase.analytics === 'function') firebaseAnalytics = firebase.analytics();
     }
   } catch(e) {
     console.log('Cloud DB offline fallback mode', e);
