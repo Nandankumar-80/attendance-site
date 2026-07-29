@@ -155,46 +155,92 @@ async function openStudentPublicPortal(sessionId, email, gid){
 async function submitPublicStudentAttendance(){
   if(!publicPortalData) return;
   const select = document.getElementById('portalStudentSelect');
-  const studentId = select.value;
+  const studentId = select ? select.value : '';
   const statusEl = document.getElementById('portalStatusMessage');
   const btn = document.getElementById('portalSubmitBtn');
 
   if(!studentId){
-    statusEl.style.display = 'block';
-    statusEl.style.background = 'rgba(248,113,113,0.15)';
-    statusEl.style.color = 'var(--red)';
-    statusEl.style.border = '1px solid rgba(248,113,113,0.3)';
-    statusEl.textContent = 'Please select your Roll Number / Name first.';
+    if(statusEl){
+      statusEl.style.display = 'block';
+      statusEl.style.background = 'rgba(248,113,113,0.15)';
+      statusEl.style.color = 'var(--red)';
+      statusEl.style.border = '1px solid rgba(248,113,113,0.3)';
+      statusEl.textContent = 'Please select your Roll Number / Name first.';
+    }
     return;
   }
 
-  btn.disabled = true;
-  btn.textContent = 'Submitting...';
-
-  const g = publicPortalData.targetGroup;
-  if(!g.sessions) g.sessions = [];
-
-  let sess = g.sessions.find(s => s.id === publicPortalData.sessionId);
-  if(!sess){
-    sess = {
-      id: publicPortalData.sessionId,
-      date: new Date().toISOString().slice(0,10),
-      subject: 'Class',
-      records: {}
-    };
-    g.sessions.push(sess);
+  if(btn){
+    btn.disabled = true;
+    btn.textContent = 'Submitting...';
   }
 
-  if(!sess.records) sess.records = {};
-  sess.records[studentId] = true;
+  try {
+    const g = publicPortalData.targetGroup;
+    if(!g.sessions) g.sessions = [];
 
-  await storageSet('data:' + publicPortalData.email, JSON.stringify(publicPortalData.userAppData));
+    let sess = g.sessions.find(s => s.id === publicPortalData.sessionId);
+    if(!sess){
+      sess = {
+        id: publicPortalData.sessionId,
+        date: new Date().toISOString().slice(0,10),
+        subject: g.subject || 'Class',
+        records: {}
+      };
+      g.sessions.push(sess);
+    }
 
-  statusEl.style.display = 'block';
-  statusEl.style.background = 'rgba(34,197,94,0.15)';
-  statusEl.style.color = '#22c55e';
-  statusEl.style.border = '1px solid rgba(34,197,94,0.3)';
-  statusEl.innerHTML = '🎉 <b>Attendance Marked Successfully!</b><br>You are registered as Present.';
+    if(!sess.records) sess.records = {};
+    sess.records[studentId] = true;
 
-  btn.style.display = 'none';
+    // Save to local & cloud storage
+    await storageSet('data:' + publicPortalData.email, JSON.stringify(publicPortalData.userAppData));
+
+    // Get student info for confirmation card
+    const student = (g.students || []).find(s => s.id === studentId);
+    const sName = student ? student.name : 'Student';
+    const sRoll = student ? student.rollNo : '';
+    const instName = portalGroupInstitution(g);
+    const classLbl = portalGroupLabel(g);
+
+    // Hide selection controls & show beautiful confirmation card
+    if(select) select.style.display = 'none';
+    if(btn) btn.style.display = 'none';
+
+    if(statusEl){
+      statusEl.style.display = 'block';
+      statusEl.style.background = 'rgba(34,197,94,0.12)';
+      statusEl.style.color = '#22c55e';
+      statusEl.style.border = '1px solid rgba(34,197,94,0.4)';
+      statusEl.style.borderRadius = '14px';
+      statusEl.style.padding = '20px';
+      statusEl.style.textAlign = 'center';
+
+      statusEl.innerHTML = `
+        <div style="font-size:42px;margin-bottom:8px">🎉</div>
+        <h3 style="margin:0 0 6px 0;font-size:18px;color:#22c55e">Attendance Marked Successfully!</h3>
+        <p style="margin:0 0 12px 0;font-size:13px;color:var(--text-dim)">Thank you, <b>${sName}</b> (Roll No: ${sRoll})! Your attendance for today has been registered.</p>
+        
+        <div style="background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:left;font-size:12px;color:var(--text);margin-top:10px">
+          <div style="margin-bottom:4px"><b>Institution:</b> ${instName}</div>
+          <div style="margin-bottom:4px"><b>Class:</b> ${classLbl}</div>
+          <div><b>Status:</b> <span style="color:#22c55e;font-weight:700">✅ Present</span></div>
+        </div>
+      `;
+    }
+
+  } catch(e) {
+    console.error('Error submitting student attendance', e);
+    if(btn){
+      btn.disabled = false;
+      btn.textContent = '✅ Mark Me Present';
+    }
+    if(statusEl){
+      statusEl.style.display = 'block';
+      statusEl.style.background = 'rgba(248,113,113,0.15)';
+      statusEl.style.color = 'var(--red)';
+      statusEl.style.border = '1px solid rgba(248,113,113,0.3)';
+      statusEl.textContent = 'Failed to submit. Please try again.';
+    }
+  }
 }
