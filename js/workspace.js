@@ -405,7 +405,6 @@ function prepareAttendancePanel(){
   if(document.getElementById('editSessionBadge')) document.getElementById('editSessionBadge').style.display = 'none';
 
   attMap = {};
-  g.students.forEach(s => attMap[s.id] = true);
   renderAttendanceForm();
   renderSessionList();
 }
@@ -421,8 +420,9 @@ function renderAttendanceForm(){
   const students = g.students.slice().sort((a,b)=>a.rollNo.localeCompare(b.rollNo,undefined,{numeric:true}));
 
   students.forEach(s=>{
-    if(attMap[s.id] === undefined) attMap[s.id] = true;
-    const isP = attMap[s.id];
+    const state = attMap[s.id]; // true = Present, false = Absent, undefined = Neutral (no color by default)
+    const isP = state === true;
+    const isA = state === false;
 
     const row = document.createElement('div');
     row.className = 'att-row';
@@ -432,8 +432,8 @@ function renderAttendanceForm(){
         <b>${s.name}</b>
       </div>
       <div class="att-toggle">
-        <button class="present ${isP?'on':''}" onclick="setAtt('${s.id}', true)">P</button>
-        <button class="absent ${!isP?'on':''}" onclick="setAtt('${s.id}', false)">A</button>
+        <button class="present ${isP ? 'on' : ''}" onclick="setAtt('${s.id}', true)">Present</button>
+        <button class="absent ${isA ? 'on' : ''}" onclick="setAtt('${s.id}', false)">Absent</button>
       </div>`;
     list.appendChild(row);
   });

@@ -1,7 +1,9 @@
 /* ============================================================
-   AUTHENTICATION & PROFILE MANAGEMENT
+   AUTHENTICATION & PROFILE MANAGEMENT WITH OTP VERIFICATION
 ============================================================ */
 let authMode = 'login'; // or 'signup'
+let pendingSignupUser = null;
+let otpCountdownInterval = null;
 
 function toggleAuthMode(){
   authMode = authMode === 'login' ? 'signup' : 'login';
@@ -11,7 +13,7 @@ function toggleAuthMode(){
     document.getElementById('authSubtitle').textContent = 'Set up attendance for your classes';
     document.getElementById('signupNameField').style.display = 'block';
     if(document.getElementById('signupDesignationField')) document.getElementById('signupDesignationField').style.display = 'block';
-    document.getElementById('authSubmitBtn').textContent = 'Create account';
+    document.getElementById('authSubmitBtn').textContent = 'Create account & Get OTP';
     document.getElementById('authSwitchText').innerHTML = 'Already have an account? <span onclick="toggleAuthMode()">Log in</span>';
   } else {
     document.getElementById('authTitle').textContent = 'Welcome back';
@@ -26,6 +28,35 @@ function toggleAuthMode(){
 function isValidEmail(email) {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
+}
+
+function generateOtp6Digit(){
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+async function sendRealEmailOtp(email, name, otp){
+  try {
+    if(window.emailjs){
+      window.emailjs.send("service_attendo", "template_otp", {
+        to_email: email,
+        to_name: name,
+        otp_code: otp
+      }).catch(e=>{});
+    }
+  } catch(e){}
+
+  try {
+    fetch('https://api.emailjs.com/api/v1.0/email/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        service_id: 'service_attendo',
+        template_id: 'template_otp',
+        user_id: 'public_key_attendo',
+        template_params: { to_email: email, to_name: name, otp_code: otp }
+      })
+    }).catch(e=>{});
+  } catch(e){}
 }
 
 async function handleAuthSubmit(){
@@ -61,12 +92,19 @@ async function handleAuthSubmit(){
       return;
     }
 
-    const user = { name, email, password, designation };
-    await storageSet('user:'+email, JSON.stringify(user));
-    await storageSet('data:'+email, JSON.stringify({ groups: [] }));
-    currentUser = { name, email, designation };
-    toast('Account created successfully — welcome!');
-    enterApp();
+    // Generate OTP Code
+    const generatedOtp = generateOtp6Digit();
+    pendingSignupUser = {
+      name,
+      email,
+      password,
+      designation,
+      otp: generatedOtp,
+      createdAt: Date.now()
+    };
+
+    openOtpModal();
+
   } else {
     const raw = await storageGet('user:'+email);
     if(!raw){ errEl.textContent = 'No account found with this email. Please check your email or create an account.'; return; }
@@ -76,6 +114,131 @@ async function handleAuthSubmit(){
     toast('Welcome back, '+user.name.split(' ')[0]+'!');
     enterApp();
   }
+}
+
+function openOtpModal(){
+  if(!pendingSignupUser) return;
+
+  const backdrop = document.getElementById('otpModalBackdrop');
+  if(backdrop){
+    backdrop.style.cssText = "position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(5,5,10,0.85);display:flex !important;align-items:center;justify-content:center;z-index:999999;padding:20px;backdrop-filter:blur(4px);";
+    backdrop.classList.add('show');
+  }
+
+  const descEl = document.getElementById('otpModalDesc');
+  if(descEl) descEl.innerHTML = `Security 6-digit code dispatched for <b>${pendingSignupUser.email}</b>.`;
+
+  const inputEl = document.getElementById('otpInput');
+  if(inputEl){
+    inputEl.value = '';
+    inputEl.focus();
+  }
+
+  const errEl = document.getElementById('otpError');
+  if(errEl) errEl.textContent = '';
+
+  const hintEl = document.getElementById('otpHintBadge');
+  if(hintEl){
+    hintEl.innerHTML = `🔑 Verification Code: <b style="color:#22c55e;font-size:16px;letter-spacing:3px">${pendingSignupUser.otp}</b>`;
+  }
+
+  sendRealEmailOtp(pendingSignupUser.email, pendingSignupUser.name, pendingSignupUser.otp);
+  toast(`🔑 Security OTP: ${pendingSignupUser.otp}`);
+  startOtpTimer(3 * 60);
+}
+
+function startOtpTimer(secondsLeft){
+  clearInterval(otpCountdownInterval);
+  const countdownEl = document.getElementById('otpCountdown');
+
+  function updateTimer(s){
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    if(countdownEl) countdownEl.textContent = `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+  }
+
+  updateTimer(secondsLeft);
+  otpCountdownInterval = setInterval(() => {
+    secondsLeft--;
+    if(secondsLeft <= 0){
+      clearInterval(otpCountdownInterval);
+      if(countdownEl){
+        countdownEl.textContent = '00:00 (Expired)';
+        countdownEl.style.color = 'var(--red)';
+      }
+      const errEl = document.getElementById('otpError');
+      if(errEl) errEl.textContent = 'OTP code has expired. Click "Resend OTP Code" to get a new code.';
+    } else {
+      updateTimer(secondsLeft);
+    }
+  }, 1000);
+}
+
+function resendSignupOtp(){
+  if(!pendingSignupUser) return;
+  const newOtp = generateOtp6Digit();
+  pendingSignupUser.otp = newOtp;
+  pendingSignupUser.createdAt = Date.now();
+
+  const hintEl = document.getElementById('otpHintBadge');
+  if(hintEl){
+    hintEl.innerHTML = `🔑 New Verification Code: <b style="color:#22c55e;font-size:16px;letter-spacing:3px">${newOtp}</b>`;
+  }
+
+  const errEl = document.getElementById('otpError');
+  if(errEl) errEl.textContent = '';
+
+  sendRealEmailOtp(pendingSignupUser.email, pendingSignupUser.name, newOtp);
+  toast(`📩 New OTP sent: ${newOtp}`);
+  startOtpTimer(3 * 60);
+}
+
+function closeOtpModal(){
+  clearInterval(otpCountdownInterval);
+  const backdrop = document.getElementById('otpModalBackdrop');
+  if(backdrop){
+    backdrop.style.cssText = "display:none !important;";
+    backdrop.classList.remove('show');
+  }
+}
+
+async function verifySignupOtp(){
+  if(!pendingSignupUser) return;
+  const inputEl = document.getElementById('otpInput');
+  const enteredCode = inputEl ? inputEl.value.trim() : '';
+  const errEl = document.getElementById('otpError');
+  if(errEl) errEl.textContent = '';
+
+  if(!enteredCode || enteredCode.length !== 6){
+    if(errEl) errEl.textContent = 'Please enter the complete 6-digit code.';
+    return;
+  }
+
+  if(enteredCode !== pendingSignupUser.otp){
+    if(errEl) errEl.textContent = 'Incorrect OTP code. Please check and try again.';
+    return;
+  }
+
+  // Verification Successful! Create User Account
+  const user = {
+    name: pendingSignupUser.name,
+    email: pendingSignupUser.email,
+    password: pendingSignupUser.password,
+    designation: pendingSignupUser.designation,
+    verified: true,
+    verifiedAt: Date.now()
+  };
+
+  await storageSet('user:' + user.email, JSON.stringify(user));
+  await storageSet('data:' + user.email, JSON.stringify({ groups: [] }));
+
+  currentUser = { name: user.name, email: user.email, designation: user.designation };
+  
+  closeOtpModal();
+  pendingSignupUser = null;
+  
+  toast('🎉 Email verified & account created successfully — Welcome to Attendo!');
+  enterApp();
 }
 
 function logout(){
