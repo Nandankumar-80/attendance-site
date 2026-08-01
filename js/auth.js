@@ -30,6 +30,26 @@ function isValidEmail(email) {
   return emailRegex.test(email);
 }
 
+async function syncUserProfileToFirebase(userProfile){
+  if(!userProfile || !userProfile.email) return;
+  const key = typeof sanitizeKey === 'function' ? sanitizeKey(userProfile.email) : userProfile.email.replace(/[^a-zA-Z0-9_]/g, '_');
+
+  if(window.firebaseDb){
+    try {
+      await window.firebaseDb.collection('users').doc(key).set({
+        name: userProfile.name,
+        email: userProfile.email,
+        designation: userProfile.designation || 'Assistant Professor',
+        authProvider: userProfile.authProvider || 'email_otp',
+        lastLoginAt: Date.now(),
+        updatedAt: Date.now()
+      }, { merge: true });
+    } catch(e) {
+      console.log('Firebase users collection sync note:', e);
+    }
+  }
+}
+
 async function handleGoogleSignIn(){
   if(!window.firebase || !firebase.auth){
     toast('Firebase Auth loading... Please wait.');
@@ -51,6 +71,8 @@ async function handleGoogleSignIn(){
         await storageSet('user:' + email, JSON.stringify({ name, email, designation, verified: true }));
         await storageSet('data:' + email, JSON.stringify({ groups: [] }));
       }
+
+      await syncUserProfileToFirebase({ name, email, designation, authProvider: 'google' });
       
       toast(`🎉 Welcome, ${name.split(' ')[0]}!`);
       enterApp();
@@ -266,6 +288,8 @@ async function verifySignupOtp(){
 
   await storageSet('user:' + user.email, JSON.stringify(user));
   await storageSet('data:' + user.email, JSON.stringify({ groups: [] }));
+
+  await syncUserProfileToFirebase({ name: user.name, email: user.email, designation: user.designation, authProvider: 'email_otp' });
 
   currentUser = { name: user.name, email: user.email, designation: user.designation };
   
