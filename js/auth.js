@@ -30,6 +30,41 @@ function isValidEmail(email) {
   return emailRegex.test(email);
 }
 
+async function handleGoogleSignIn(){
+  if(!window.firebase || !firebase.auth){
+    toast('Firebase Auth loading... Please wait.');
+    return;
+  }
+  const provider = new firebase.auth.GoogleAuthProvider();
+  try {
+    const result = await firebase.auth().signInWithPopup(provider);
+    const user = result.user;
+    if(user && user.email){
+      const email = user.email.toLowerCase();
+      const name = user.displayName || email.split('@')[0];
+      const designation = 'Assistant Professor';
+
+      currentUser = { name, email, designation };
+      
+      const existing = await storageGet('user:' + email);
+      if(!existing){
+        await storageSet('user:' + email, JSON.stringify({ name, email, designation, verified: true }));
+        await storageSet('data:' + email, JSON.stringify({ groups: [] }));
+      }
+      
+      toast(`🎉 Welcome, ${name.split(' ')[0]}!`);
+      enterApp();
+    }
+  } catch(e) {
+    console.error('Google Sign-In Error:', e);
+    if(e.code === 'auth/popup-closed-by-user'){
+      toast('Google Sign-In canceled.');
+    } else {
+      toast('Google Sign-In: ' + (e.message || 'Check Authorized Domains'));
+    }
+  }
+}
+
 function generateOtp6Digit(){
   return String(Math.floor(100000 + Math.random() * 900000));
 }
