@@ -139,11 +139,11 @@ function openOtpModal(){
 
   const hintEl = document.getElementById('otpHintBadge');
   if(hintEl){
-    hintEl.innerHTML = `🔑 Verification Code: <b style="color:#22c55e;font-size:16px;letter-spacing:3px">${pendingSignupUser.otp}</b>`;
+    hintEl.innerHTML = `📩 6-Digit security code dispatched to <b>${pendingSignupUser.email}</b><br><span style="font-size:11px;color:var(--text-dim);font-weight:normal;display:block;margin-top:4px">(Please check your Email Inbox & Spam/Junk folder)</span>`;
   }
 
   sendRealEmailOtp(pendingSignupUser.email, pendingSignupUser.name, pendingSignupUser.otp);
-  toast(`🔑 Security OTP: ${pendingSignupUser.otp}`);
+  toast(`📩 Verification code sent to ${pendingSignupUser.email}`);
   startOtpTimer(3 * 60);
 }
 
@@ -182,14 +182,14 @@ function resendSignupOtp(){
 
   const hintEl = document.getElementById('otpHintBadge');
   if(hintEl){
-    hintEl.innerHTML = `🔑 New Verification Code: <b style="color:#22c55e;font-size:16px;letter-spacing:3px">${newOtp}</b>`;
+    hintEl.innerHTML = `📩 New security code dispatched to <b>${pendingSignupUser.email}</b><br><span style="font-size:11px;color:var(--text-dim);font-weight:normal;display:block;margin-top:4px">(Please check your Email Inbox & Spam/Junk folder)</span>`;
   }
 
   const errEl = document.getElementById('otpError');
   if(errEl) errEl.textContent = '';
 
   sendRealEmailOtp(pendingSignupUser.email, pendingSignupUser.name, newOtp);
-  toast(`📩 New OTP sent: ${newOtp}`);
+  toast(`📩 New OTP sent to ${pendingSignupUser.email}`);
   startOtpTimer(3 * 60);
 }
 
