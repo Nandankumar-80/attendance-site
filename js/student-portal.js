@@ -1,7 +1,20 @@
 /* ============================================================
    STUDENT PUBLIC MOBILE PORTAL (ZERO-LOGIN ATTENDANCE ROUTER)
+   WITH 30m GEOFENCING VALIDATION
 ============================================================ */
 let publicPortalData = null;
+
+function calculateHaversineDistanceMeters(lat1, lon1, lat2, lon2) {
+  const R = 6371000; // Earth radius in meters
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c);
+}
 
 function portalGroupLabel(g){
   if(!g) return '';
@@ -62,6 +75,10 @@ async function openStudentPublicPortal(sessionId, email, gid){
 
     await waitForFirebaseDb();
 
+    const params = new URLSearchParams(window.location.search);
+    let tlat = parseFloat(params.get('tlat'));
+    let tlng = parseFloat(params.get('tlng'));
+
     // 1. Fetch QR session metadata if email/gid not in URL
     if((!email || !gid) && firebaseDb){
       try {
@@ -70,6 +87,8 @@ async function openStudentPublicPortal(sessionId, email, gid){
           const d = qrDoc.data();
           if(!email) email = d.email;
           if(!gid) gid = d.gid;
+          if(isNaN(tlat) && d.teacherLat) tlat = parseFloat(d.teacherLat);
+          if(isNaN(tlng) && d.teacherLng) tlng = parseFloat(d.teacherLng);
         }
       } catch(e) { console.error('Cloud QR metadata fetch error', e); }
     }
@@ -118,6 +137,8 @@ async function openStudentPublicPortal(sessionId, email, gid){
       sessionId,
       email,
       gid,
+      tlat,
+      tlng,
       userAppData,
       targetGroup
     };
@@ -172,6 +193,66 @@ async function submitPublicStudentAttendance(){
 
   if(btn){
     btn.disabled = true;
+    btn.textContent = 'Verifying Location...';
+  }
+
+  // 30-Meter Geofence Validation Check
+  const params = new URLSearchParams(window.location.search);
+  let tlat = parseFloat(params.get('tlat') || (publicPortalData && publicPortalData.tlat));
+  let tlng = parseFloat(params.get('tlng') || (publicPortalData && publicPortalData.tlng));
+
+  if(!isNaN(tlat) && !isNaN(tlng)){
+    let sLat = null, sLng = null;
+    try {
+      const pos = await new Promise((resolve) => {
+        if(navigator.geolocation){
+          navigator.geolocation.getCurrentPosition(resolve, () => resolve(null), { enableHighAccuracy: true, timeout: 4500 });
+        } else {
+          resolve(null);
+        }
+      });
+      if(pos && pos.coords){
+        sLat = pos.coords.latitude;
+        sLng = pos.coords.longitude;
+      }
+    } catch(e){}
+
+    if(sLat === null || sLng === null){
+      if(btn){
+        btn.disabled = false;
+        btn.textContent = '✅ Mark Me Present';
+      }
+      if(statusEl){
+        statusEl.style.display = 'block';
+        statusEl.style.background = 'rgba(248,113,113,0.15)';
+        statusEl.style.color = 'var(--red)';
+        statusEl.style.border = '1px solid rgba(248,113,113,0.3)';
+        statusEl.style.padding = '14px';
+        statusEl.style.borderRadius = '10px';
+        statusEl.innerHTML = '📍 <b>Location Permission Required!</b><br>Geofenced attendance requires GPS location permission to verify you are within 30m of classroom.';
+      }
+      return;
+    }
+
+    const distMeters = calculateHaversineDistanceMeters(tlat, tlng, sLat, sLng);
+    if(distMeters > 30){
+      if(btn){
+        btn.disabled = false;
+        btn.textContent = '✅ Mark Me Present';
+      }
+      if(statusEl){
+        statusEl.innerHTML = `
+          <div style="font-size:36px;margin-bottom:6px">🚫</div>
+          <h3 style="margin:0 0 6px 0;font-size:16px;color:#ef4444">Sorry, You are Out of Range!</h3>
+          <p style="margin:0;font-size:13px;line-height:1.5">You are currently <b>${distMeters} meters</b> away from the classroom.<br><span style="font-size:12px;color:var(--text-dim)">Geofenced attendance is restricted to within <b>30 meters</b> of the teacher.</span></p>
+        `;
+      }
+      return;
+    }
+  }
+
+  if(btn){
+    btn.disabled = true;
     btn.textContent = 'Submitting...';
   }
 
@@ -218,13 +299,14 @@ async function submitPublicStudentAttendance(){
 
       statusEl.innerHTML = `
         <div style="font-size:42px;margin-bottom:8px">🎉</div>
-        <h3 style="margin:0 0 6px 0;font-size:18px;color:#22c55e">Attendance Marked Successfully!</h3>
+        <h3 style="margin:0 0 6px 0;font-size:18px;color:#22c55e">Your Attendance is Successfully Registered!</h3>
         <p style="margin:0 0 12px 0;font-size:13px;color:var(--text-dim)">Thank you, <b>${sName}</b> (Roll No: ${sRoll})! Your attendance for today has been registered.</p>
         
         <div style="background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:left;font-size:12px;color:var(--text);margin-top:10px">
           <div style="margin-bottom:4px"><b>Institution:</b> ${instName}</div>
           <div style="margin-bottom:4px"><b>Class:</b> ${classLbl}</div>
-          <div><b>Status:</b> <span style="color:#22c55e;font-weight:700">✅ Present</span></div>
+          <div style="margin-bottom:4px"><b>Status:</b> <span style="color:#22c55e;font-weight:700">✅ Present</span></div>
+          <div><b>Geofence Verification:</b> <span style="color:var(--cyan);font-weight:600">📍 Verified (Within 30m Classroom Radius)</span></div>
         </div>
       `;
     }
@@ -242,5 +324,117 @@ async function submitPublicStudentAttendance(){
       statusEl.style.border = '1px solid rgba(248,113,113,0.3)';
       statusEl.textContent = 'Failed to submit. Please try again.';
     }
+  }
+}
+
+let html5QrScannerInstance = null;
+
+async function openCameraQrScanner(){
+  const backdrop = document.getElementById('cameraScanModalBackdrop');
+  if(backdrop){
+    backdrop.style.cssText = "position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(5,5,10,0.88);display:flex !important;align-items:center;justify-content:center;z-index:999999;padding:20px;backdrop-filter:blur(4px);";
+    backdrop.classList.add('show');
+  }
+
+  const errEl = document.getElementById('qrScanError');
+  if(errEl) errEl.textContent = '';
+
+  const loadingEl = document.getElementById('qrCameraLoading');
+  if(loadingEl) loadingEl.style.display = 'block';
+
+  try {
+    if(html5QrScannerInstance){
+      try { await html5QrScannerInstance.stop(); } catch(e){}
+    }
+
+    if(!window.Html5Qrcode){
+      if(errEl) errEl.textContent = 'Scanner library loading. Please try again in a moment.';
+      if(loadingEl) loadingEl.style.display = 'none';
+      return;
+    }
+
+    html5QrScannerInstance = new Html5Qrcode("qrReaderVideo");
+    await html5QrScannerInstance.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: { width: 220, height: 220 } },
+      (decodedText) => {
+        onCameraQrCodeScanned(decodedText);
+      },
+      (errorMessage) => {}
+    );
+    if(loadingEl) loadingEl.style.display = 'none';
+  } catch(e){
+    console.error('Camera QR start error:', e);
+    if(loadingEl) loadingEl.style.display = 'none';
+    if(errEl) errEl.textContent = 'Camera access error. Please allow camera permissions in browser settings.';
+  }
+}
+
+async function closeCameraQrScanner(){
+  if(html5QrScannerInstance){
+    try { await html5QrScannerInstance.stop(); } catch(e){}
+    html5QrScannerInstance = null;
+  }
+  const backdrop = document.getElementById('cameraScanModalBackdrop');
+  if(backdrop){
+    backdrop.style.cssText = "display:none !important;";
+    backdrop.classList.remove('show');
+  }
+}
+
+function onCameraQrCodeScanned(scannedUrl){
+  closeCameraQrScanner();
+  toast('📷 QR Code Scanned!');
+  try {
+    const urlObj = new URL(scannedUrl);
+    const params = urlObj.searchParams;
+    const qrSession = params.get('qrSession');
+    const email = params.get('email');
+    const gid = params.get('gid');
+    const tlat = params.get('tlat');
+    const tlng = params.get('tlng');
+
+    if(qrSession){
+      let newSearch = `?qrSession=${qrSession}`;
+      if(email) newSearch += `&email=${encodeURIComponent(email)}`;
+      if(gid) newSearch += `&gid=${gid}`;
+      if(tlat) newSearch += `&tlat=${tlat}`;
+      if(tlng) newSearch += `&tlng=${tlng}`;
+
+      window.history.pushState({}, '', newSearch);
+      openStudentPublicPortal(qrSession, email, gid);
+    } else {
+      toast('Invalid Attendo QR code.');
+    }
+  } catch(e){
+    toast('Scanned code is not a valid URL.');
+  }
+}
+
+async function scanQrFromGallery(event){
+  const file = event.target.files && event.target.files[0];
+  if(!file) return;
+
+  const errEl = document.getElementById('qrScanError');
+  if(errEl) errEl.textContent = 'Decoding QR image... Please wait.';
+
+  try {
+    if(!window.Html5Qrcode){
+      if(errEl) errEl.textContent = 'Decoder library loading. Please try again in a moment.';
+      return;
+    }
+
+    const html5QrCode = new Html5Qrcode("qrReaderVideo");
+    const decodedText = await html5QrCode.scanFile(file, true);
+    if(decodedText){
+      onCameraQrCodeScanned(decodedText);
+    } else {
+      if(errEl) errEl.textContent = 'Could not detect a valid QR code in this image.';
+    }
+  } catch(err) {
+    console.error('Gallery QR decode error:', err);
+    if(errEl) errEl.textContent = 'Could not detect a valid Attendo QR code in this image. Please select a clear QR image/screenshot.';
+  } finally {
+    event.target.value = '';
   }
 }

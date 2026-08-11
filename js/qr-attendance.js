@@ -20,12 +20,30 @@ async function startQrAttendanceSession(){
   const dateStr = document.getElementById('attDate')?.value || new Date().toISOString().slice(0,10);
   const subjectStr = document.getElementById('attSubject')?.value.trim() || 'Class';
 
+  let teacherLat = null;
+  let teacherLng = null;
+
+  if(navigator.geolocation){
+    try {
+      const pos = await new Promise((resolve) => {
+        navigator.geolocation.getCurrentPosition(resolve, () => resolve(null), { enableHighAccuracy: true, timeout: 3500 });
+      });
+      if(pos && pos.coords){
+        teacherLat = pos.coords.latitude;
+        teacherLng = pos.coords.longitude;
+      }
+    } catch(e){}
+  }
+
   const sessionMeta = {
     sessionId: activeQrSessionId,
     email: currentUser ? currentUser.email : '',
     gid: g.id,
     date: dateStr,
     subject: subjectStr,
+    teacherLat: teacherLat,
+    teacherLng: teacherLng,
+    geoRadius: 30,
     createdAt: Date.now(),
     expiresAt: Date.now() + (5 * 60 * 1000)
   };
@@ -37,7 +55,10 @@ async function startQrAttendanceSession(){
   }
 
   const baseUrl = getAppBaseUrl();
-  const studentLink = `${baseUrl}?qrSession=${activeQrSessionId}&email=${encodeURIComponent(currentUser ? currentUser.email : '')}&gid=${g.id}`;
+  let studentLink = `${baseUrl}?qrSession=${activeQrSessionId}&email=${encodeURIComponent(currentUser ? currentUser.email : '')}&gid=${g.id}`;
+  if(teacherLat && teacherLng){
+    studentLink += `&tlat=${teacherLat}&tlng=${teacherLng}`;
+  }
 
   const qrContainer = document.getElementById('qrCanvasContainer');
   if(qrContainer){

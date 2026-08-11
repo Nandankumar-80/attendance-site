@@ -22,6 +22,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics-compat.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
@@ -30,6 +31,7 @@
   <div class="topbar" id="topbar" style="display:none">
     <div class="logo"><span class="dot"></span>Attendo<span class="mono-tag" style="margin-left:8px">v1.1</span></div>
     <div class="topbar-right">
+      <button class="btn btn-ghost btn-sm" onclick="openCameraQrScanner()" style="border:1px solid var(--violet2);background:rgba(124,58,237,0.15);color:var(--violet2);font-weight:700" title="Scan Classroom QR Code">📷 Scan QR</button>
       <button class="btn btn-ghost btn-sm" onclick="openNotifModal()" id="notifBtn" style="position:relative" title="Smart Notifications & Alerts">
         🔔<span id="notifBadge" style="position:absolute;top:-4px;right:-4px;background:#ef4444;color:#fff;border-radius:10px;padding:1px 5px;font-size:10px;font-weight:700;display:none">0</span>
       </button>
@@ -93,6 +95,10 @@
         <span id="authSwitchText">New here? <span onclick="toggleAuthMode()">Create an account</span></span>
       </div>
 
+      <button class="btn btn-ghost btn-block" onclick="openCameraQrScanner()" style="margin-top:12px;padding:11px;font-size:13px;border:1px solid var(--violet2);background:rgba(124,58,237,0.12);color:var(--violet2);font-weight:700">
+        📷 Scan Classroom QR Code
+      </button>
+
       <div class="terminal-line">
         <span class="cmd">$</span> attendo --init &nbsp;→&nbsp; roll-call, digitized.
       </div>
@@ -107,6 +113,10 @@
         <h1 style="font-size:22px;margin:0" id="portalInstName">Class Attendance</h1>
         <p style="font-size:13px;color:var(--cyan);margin-top:4px" id="portalClassInfo">Scan & Mark Attendance Portal</p>
       </div>
+
+      <button class="btn btn-ghost btn-block" onclick="openCameraQrScanner()" style="padding:12px;font-size:14px;margin-bottom:16px;border:1px solid var(--violet2);background:rgba(124,58,237,0.12);color:var(--violet2);font-weight:700">
+        📷 Open Live Camera QR Scanner
+      </button>
 
       <div style="background:var(--card2);border:1px solid var(--violet2);border-radius:10px;padding:12px;margin-bottom:16px;text-align:center">
         <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase">Subject & Date</div>
@@ -667,6 +677,30 @@
   </div>
 </div>
 
+<!-- Live Camera QR Scanner Modal -->
+<div class="modal-backdrop" id="cameraScanModalBackdrop">
+  <div class="modal" style="max-width:440px;text-align:center">
+    <div style="font-size:32px;margin-bottom:6px">📷</div>
+    <h2 style="margin:0 0 6px 0;font-size:20px">Scan Classroom QR Code</h2>
+    <p style="font-size:12px;color:var(--text-dim);margin-bottom:14px">Point your camera at the teacher's classroom QR code to mark attendance.</p>
+    
+    <div id="qrCameraContainer" style="width:100%;min-height:260px;background:#000;border-radius:12px;overflow:hidden;position:relative;border:2px solid var(--violet2);margin-bottom:14px">
+      <div id="qrReaderVideo" style="width:100%"></div>
+      <div id="qrCameraLoading" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#fff;font-size:13px">Starting Camera...</div>
+    </div>
+
+    <div id="qrScanError" style="font-size:12px;color:var(--red);margin-bottom:10px"></div>
+
+    <div class="modal-actions" style="display:flex;flex-direction:column;gap:8px">
+      <input type="file" id="qrFileInput" accept="image/*" onchange="scanQrFromGallery(event)" style="display:none">
+      <button class="btn btn-primary btn-block" onclick="document.getElementById('qrFileInput').click()" style="background:var(--card2);border:1px solid var(--violet2);color:var(--violet2);font-weight:700">
+        🖼️ Upload QR Image from Gallery
+      </button>
+      <button class="btn btn-ghost btn-block" onclick="closeCameraQrScanner()">Close Camera</button>
+    </div>
+  </div>
+</div>
+
 <!-- EmailJS API Library -->
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 
@@ -695,17 +729,17 @@
 <div class="toast" id="toast"></div>
 
 <!-- JavaScript Architecture Modules -->
-<script src="js/config.js?v=2.3"></script>
-<script src="js/storage.js?v=2.3"></script>
-<script src="js/auth.js?v=2.3"></script>
-<script src="js/dashboard.js?v=2.3"></script>
-<script src="js/workspace.js?v=2.3"></script>
-<script src="js/reports.js?v=2.3"></script>
-<script src="js/marks.js?v=2.3"></script>
-<script src="js/certificates.js?v=2.3"></script>
-<script src="js/qr-attendance.js?v=2.3"></script>
-<script src="js/student-portal.js?v=2.3"></script>
-<script src="js/notifications.js?v=2.3"></script>
-<script src="js/app.js?v=2.3"></script>
+<script src="js/config.js?v=2.9"></script>
+<script src="js/storage.js?v=2.9"></script>
+<script src="js/auth.js?v=2.9"></script>
+<script src="js/dashboard.js?v=2.9"></script>
+<script src="js/workspace.js?v=2.9"></script>
+<script src="js/reports.js?v=2.9"></script>
+<script src="js/marks.js?v=2.9"></script>
+<script src="js/certificates.js?v=2.9"></script>
+<script src="js/qr-attendance.js?v=2.9"></script>
+<script src="js/student-portal.js?v=2.9"></script>
+<script src="js/notifications.js?v=2.9"></script>
+<script src="js/app.js?v=2.9"></script>
 </body>
 </html>
