@@ -141,6 +141,22 @@ function listenLiveQrSubmissions(){
 
   if(!firebaseDb || !currentUser) return;
 
+  // 1. Direct Real-time QR Session Listener (Instant Sub-Second Count Trigger)
+  if(activeQrSessionId){
+    try {
+      firebaseDb.collection('attendo_qr_sessions').doc(activeQrSessionId).onSnapshot(doc => {
+        if(doc && doc.exists && doc.data()){
+          const d = doc.data();
+          if(d.records){
+            const markedCount = Object.keys(d.records).length;
+            if(countEl && g) countEl.textContent = `${markedCount} / ${g.students.length}`;
+          }
+        }
+      });
+    } catch(e){}
+  }
+
+  // 2. Full Storage Document Snapshot Listener
   const docRef = firebaseDb.collection('attendo_storage').doc(sanitizeKey('data:' + currentUser.email));
   qrLiveUnsub = docRef.onSnapshot(doc => {
     if(doc && doc.exists && doc.data() && doc.data().value){

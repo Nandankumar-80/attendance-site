@@ -320,8 +320,19 @@ async function submitPublicStudentAttendance(){
       `;
     }
 
-    // Save to local & cloud storage asynchronously in background
-    storageSet('data:' + publicPortalData.email, JSON.stringify(publicPortalData.userAppData)).catch(e=>{});
+    // Save to local & cloud storage
+    await storageSet('data:' + publicPortalData.email, JSON.stringify(publicPortalData.userAppData));
+
+    // Also update attendo_qr_sessions collection directly for instant live headcount trigger on teacher screen
+    if(firebaseDb && publicPortalData.sessionId){
+      try {
+        firebaseDb.collection('attendo_qr_sessions').doc(publicPortalData.sessionId).set({
+          records: { [studentId]: true },
+          lastStudentMarked: sName,
+          lastMarkedAt: Date.now()
+        }, { merge: true }).catch(e=>{});
+      } catch(e){}
+    }
 
   } catch(e) {
     console.error('Error submitting student attendance', e);
