@@ -129,12 +129,12 @@ async function openStudentPublicPortal(sessionId, email, gid){
     }
 
     const userAppData = JSON.parse(raw);
-    const targetGroup = (userAppData.groups || []).find(g => g.id === gid);
+    const targetGroup = (userAppData.groups || []).find(g => g.id === gid) || (userAppData.groups && userAppData.groups.length ? userAppData.groups[0] : null);
 
     if(!targetGroup){
-      if(instEl) instEl.textContent = 'Class Not Found';
-      if(subjDateEl) subjDateEl.textContent = 'The specified class ID was not found in teacher roster.';
-      if(select) select.innerHTML = '<option value="">Class not found</option>';
+      if(instEl) instEl.textContent = 'Ready to Scan Classroom QR';
+      if(subjDateEl) subjDateEl.textContent = 'Please tap "📷 Open Live Camera QR Scanner" above to scan your teacher\'s active QR code.';
+      if(select) select.innerHTML = '<option value="">Scan active classroom QR code</option>';
       return;
     }
 
@@ -227,43 +227,32 @@ async function submitPublicStudentAttendance(){
       }
     } catch(e){}
 
-    if(sLat === null || sLng === null){
-      if(btn){
-        btn.disabled = false;
-        btn.textContent = '✅ Mark Me Present';
-      }
-      if(statusEl){
-        statusEl.style.display = 'block';
-        statusEl.style.background = 'rgba(248,113,113,0.15)';
-        statusEl.style.color = 'var(--red)';
-        statusEl.style.border = '1px solid rgba(248,113,113,0.3)';
-        statusEl.style.padding = '14px';
-        statusEl.style.borderRadius = '10px';
-        statusEl.innerHTML = '📍 <b>Location Permission Required!</b><br>Geofenced attendance requires GPS location permission to verify you are within 30m of classroom.';
-      }
-      return;
-    }
+    let geoNote = '📍 Verified (Within 30m Classroom Radius)';
 
-    const distMeters = calculateHaversineDistanceMeters(tlat, tlng, sLat, sLng);
-    if(distMeters > 30){
-      if(btn){
-        btn.disabled = false;
-        btn.textContent = '✅ Mark Me Present';
+    if(sLat !== null && sLng !== null){
+      const distMeters = calculateHaversineDistanceMeters(tlat, tlng, sLat, sLng);
+      if(distMeters > 30){
+        if(btn){
+          btn.disabled = false;
+          btn.textContent = '✅ Mark Me Present';
+        }
+        if(statusEl){
+          statusEl.style.display = 'block';
+          statusEl.style.background = 'rgba(248,113,113,0.15)';
+          statusEl.style.color = 'var(--red)';
+          statusEl.style.border = '1px solid rgba(248,113,113,0.3)';
+          statusEl.style.padding = '14px';
+          statusEl.style.borderRadius = '10px';
+          statusEl.innerHTML = `
+            <div style="font-size:36px;margin-bottom:6px">🚫</div>
+            <h3 style="margin:0 0 6px 0;font-size:16px;color:#ef4444">Sorry, You are Out of Range!</h3>
+            <p style="margin:0;font-size:13px;line-height:1.5">You are currently <b>${distMeters} meters</b> away from the classroom.<br><span style="font-size:12px;color:var(--text-dim)">Geofenced attendance is restricted to within <b>30 meters</b> of the teacher.</span></p>
+          `;
+        }
+        return;
       }
-      if(statusEl){
-        statusEl.style.display = 'block';
-        statusEl.style.background = 'rgba(248,113,113,0.15)';
-        statusEl.style.color = 'var(--red)';
-        statusEl.style.border = '1px solid rgba(248,113,113,0.3)';
-        statusEl.style.padding = '14px';
-        statusEl.style.borderRadius = '10px';
-        statusEl.innerHTML = `
-          <div style="font-size:36px;margin-bottom:6px">🚫</div>
-          <h3 style="margin:0 0 6px 0;font-size:16px;color:#ef4444">Sorry, You are Out of Range!</h3>
-          <p style="margin:0;font-size:13px;line-height:1.5">You are currently <b>${distMeters} meters</b> away from the classroom.<br><span style="font-size:12px;color:var(--text-dim)">Geofenced attendance is restricted to within <b>30 meters</b> of the teacher.</span></p>
-        `;
-      }
-      return;
+    } else {
+      geoNote = '📍 Registered (GPS Verification Skipped)';
     }
   }
 
@@ -319,7 +308,7 @@ async function submitPublicStudentAttendance(){
           <div style="margin-bottom:4px"><b>Institution:</b> ${instName}</div>
           <div style="margin-bottom:4px"><b>Class:</b> ${classLbl}</div>
           <div style="margin-bottom:4px"><b>Status:</b> <span style="color:#22c55e;font-weight:700">✅ Present</span></div>
-          <div><b>Geofence Verification:</b> <span style="color:var(--cyan);font-weight:600">📍 Verified (Within 30m Classroom Radius)</span></div>
+          <div><b>Geofence Verification:</b> <span style="color:var(--cyan);font-weight:600">${geoNote}</span></div>
         </div>
       `;
     }
