@@ -386,7 +386,12 @@ function onCameraQrCodeScanned(scannedUrl){
   closeCameraQrScanner();
   toast('📷 QR Code Scanned!');
   try {
-    const urlObj = new URL(scannedUrl);
+    let fullUrl = (scannedUrl || '').trim();
+    if(fullUrl && !fullUrl.startsWith('http://') && !fullUrl.startsWith('https://')){
+      fullUrl = 'https://' + fullUrl;
+    }
+
+    const urlObj = new URL(fullUrl);
     const params = urlObj.searchParams;
     const qrSession = params.get('qrSession');
     const email = params.get('email');
@@ -407,6 +412,7 @@ function onCameraQrCodeScanned(scannedUrl){
       toast('Invalid Attendo QR code.');
     }
   } catch(e){
+    console.error('QR parse error:', e);
     toast('Scanned code is not a valid URL.');
   }
 }
