@@ -205,6 +205,7 @@ async function submitPublicStudentAttendance(){
   const params = new URLSearchParams(window.location.search);
   let tlat = parseFloat(params.get('tlat') || (publicPortalData && publicPortalData.tlat));
   let tlng = parseFloat(params.get('tlng') || (publicPortalData && publicPortalData.tlng));
+  let geoNote = '📍 Verified (Within 30m Classroom Radius)';
 
   if(!isNaN(tlat) && !isNaN(tlng)){
     let sLat = null, sLng = null;
@@ -226,8 +227,6 @@ async function submitPublicStudentAttendance(){
         sLng = pos.coords.longitude;
       }
     } catch(e){}
-
-    let geoNote = '📍 Verified (Within 30m Classroom Radius)';
 
     if(sLat !== null && sLng !== null){
       const distMeters = calculateHaversineDistanceMeters(tlat, tlng, sLat, sLng);
@@ -263,24 +262,26 @@ async function submitPublicStudentAttendance(){
 
   try {
     const g = publicPortalData.targetGroup;
-    if(!g.sessions) g.sessions = [];
+    if(g){
+      if(!g.sessions) g.sessions = [];
 
-    let sess = g.sessions.find(s => s.id === publicPortalData.sessionId);
-    if(!sess){
-      sess = {
-        id: publicPortalData.sessionId,
-        date: new Date().toISOString().slice(0,10),
-        subject: g.subject || 'Class',
-        records: {}
-      };
-      g.sessions.push(sess);
+      let sess = g.sessions.find(s => s.id === publicPortalData.sessionId);
+      if(!sess){
+        sess = {
+          id: publicPortalData.sessionId,
+          date: new Date().toISOString().slice(0,10),
+          subject: g.subject || 'Class',
+          records: {}
+        };
+        g.sessions.push(sess);
+      }
+
+      if(!sess.records) sess.records = {};
+      sess.records[studentId] = true;
     }
 
-    if(!sess.records) sess.records = {};
-    sess.records[studentId] = true;
-
     // Get student info for confirmation card
-    const student = (g.students || []).find(s => s.id === studentId);
+    const student = (g && g.students || []).find(s => s.id === studentId);
     const sName = student ? student.name : 'Student';
     const sRoll = student ? student.rollNo : '';
     const instName = portalGroupInstitution(g);
@@ -313,19 +314,23 @@ async function submitPublicStudentAttendance(){
       `;
     }
 
-    // Save to local & cloud storage
-    await storageSet('data:' + publicPortalData.email, JSON.stringify(publicPortalData.userAppData));
-
-    // Also update attendo_qr_sessions collection directly for instant live headcount trigger on teacher screen
+    // 1. Direct Public Write to attendo_qr_sessions for instant live headcount increment on teacher screen
     if(firebaseDb && publicPortalData.sessionId){
       try {
-        firebaseDb.collection('attendo_qr_sessions').doc(publicPortalData.sessionId).set({
+        await firebaseDb.collection('attendo_qr_sessions').doc(publicPortalData.sessionId).set({
           records: { [studentId]: true },
           lastStudentMarked: sName,
           lastMarkedAt: Date.now()
-        }, { merge: true }).catch(e=>{});
-      } catch(e){}
+        }, { merge: true });
+      } catch(e){ console.error('Cloud QR session write error', e); }
     }
+
+    // 2. Non-blocking background save to storageSet
+    try {
+      if(publicPortalData.email && publicPortalData.userAppData){
+        storageSet('data:' + publicPortalData.email, JSON.stringify(publicPortalData.userAppData)).catch(e=>{});
+      }
+    } catch(e){}
 
   } catch(e) {
     console.error('Error submitting student attendance', e);
