@@ -94,9 +94,9 @@ async function openStudentPublicPortal(sessionId, email, gid){
     }
 
     if(!email || !gid){
-      if(instEl) instEl.textContent = 'Invalid / Expired Link';
-      if(subjDateEl) subjDateEl.textContent = 'Could not load class parameters. Please ask your teacher for a new QR / link.';
-      if(select) select.innerHTML = '<option value="">Session not found</option>';
+      if(instEl) instEl.textContent = 'Ready to Scan QR';
+      if(subjDateEl) subjDateEl.textContent = 'Please tap "📷 Open Live Camera QR Scanner" above to scan your teacher\'s classroom QR code.';
+      if(select) select.innerHTML = '<option value="">Tap camera scanner above to scan QR</option>';
       return;
     }
 
