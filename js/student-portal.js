@@ -1,6 +1,6 @@
 /* ============================================================
    STUDENT PUBLIC MOBILE PORTAL (ZERO-LOGIN ATTENDANCE ROUTER)
-   WITH 30m GEOFENCING VALIDATION
+   WITH 30m GEOFENCING VALIDATION & FAILSAFE CLOUD ROSTER SYNC
 ============================================================ */
 let publicPortalData = null;
 
@@ -70,23 +70,27 @@ async function openStudentPublicPortal(sessionId, email, gid){
     const subjDateEl = document.getElementById('portalSubjectDate');
     const select = document.getElementById('portalStudentSelect');
 
-    if(subjDateEl) subjDateEl.textContent = 'Fetching session from cloud...';
+    if(subjDateEl) subjDateEl.textContent = 'Fetching session & roster from cloud...';
     if(select) select.innerHTML = '<option value="">Loading students...</option>';
 
     await waitForFirebaseDb();
 
     const params = new URLSearchParams(window.location.search);
+    if(!email) email = params.get('email');
+    if(!gid) gid = params.get('gid');
     let tlat = parseFloat(params.get('tlat'));
     let tlng = parseFloat(params.get('tlng'));
 
-    // 1. Fetch QR session metadata if email/gid not in URL
-    if((!email || !gid) && firebaseDb){
+    if(email) email = decodeURIComponent(email).trim().toLowerCase();
+
+    // 1. Fetch QR session metadata if email/gid missing
+    if((!email || !gid) && firebaseDb && sessionId){
       try {
         const qrDoc = await firebaseDb.collection('attendo_qr_sessions').doc(sessionId).get();
         if(qrDoc.exists && qrDoc.data()){
           const d = qrDoc.data();
-          if(!email) email = d.email;
-          if(!gid) gid = d.gid;
+          if(!email && d.email) email = d.email.trim().toLowerCase();
+          if(!gid && d.gid) gid = d.gid;
           if(isNaN(tlat) && d.teacherLat) tlat = parseFloat(d.teacherLat);
           if(isNaN(tlng) && d.teacherLng) tlng = parseFloat(d.teacherLng);
         }
@@ -108,7 +112,8 @@ async function openStudentPublicPortal(sessionId, email, gid){
 
     if(!raw && firebaseDb){
       try {
-        const docRef = firebaseDb.collection('attendo_storage').doc(sanitizeKey('data:' + email));
+        const docKey = typeof sanitizeKey === 'function' ? sanitizeKey('data:' + email) : ('data_' + email.replace(/[^a-zA-Z0-9_]/g, '_'));
+        const docRef = firebaseDb.collection('attendo_storage').doc(docKey);
         const doc = await docRef.get();
         if(doc.exists && doc.data() && doc.data().value){
           raw = doc.data().value;
@@ -117,9 +122,9 @@ async function openStudentPublicPortal(sessionId, email, gid){
     }
 
     if(!raw){
-      if(instEl) instEl.textContent = 'Ready to Scan Classroom QR';
-      if(subjDateEl) subjDateEl.textContent = 'Please tap "📷 Open Live Camera QR Scanner" above to scan your teacher\'s active QR code.';
-      if(select) select.innerHTML = '<option value="">Scan active classroom QR code</option>';
+      if(instEl) instEl.textContent = 'Cloud Sync Required';
+      if(subjDateEl) subjDateEl.textContent = 'Teacher class data not synced to cloud yet. Please ask teacher to refresh attendance session.';
+      if(select) select.innerHTML = '<option value="">Class dataset not synced</option>';
       return;
     }
 
@@ -128,7 +133,7 @@ async function openStudentPublicPortal(sessionId, email, gid){
 
     if(!targetGroup){
       if(instEl) instEl.textContent = 'Class Not Found';
-      if(subjDateEl) subjDateEl.textContent = 'The specified class no longer exists.';
+      if(subjDateEl) subjDateEl.textContent = 'The specified class ID was not found in teacher roster.';
       if(select) select.innerHTML = '<option value="">Class not found</option>';
       return;
     }
@@ -166,10 +171,12 @@ async function openStudentPublicPortal(sessionId, email, gid){
       select.appendChild(opt);
     });
 
+    if(typeof toast === 'function') toast('🎉 Class Roster Loaded!');
+
   } catch(err) {
     console.error('Fatal student portal error:', err);
     const subjDateEl = document.getElementById('portalSubjectDate');
-    if(subjDateEl) subjDateEl.textContent = 'Error loading session. Please refresh page or scan again.';
+    if(subjDateEl) subjDateEl.textContent = 'Error loading session. Please scan active QR code again.';
   }
 }
 
@@ -241,6 +248,12 @@ async function submitPublicStudentAttendance(){
         btn.textContent = '✅ Mark Me Present';
       }
       if(statusEl){
+        statusEl.style.display = 'block';
+        statusEl.style.background = 'rgba(248,113,113,0.15)';
+        statusEl.style.color = 'var(--red)';
+        statusEl.style.border = '1px solid rgba(248,113,113,0.3)';
+        statusEl.style.padding = '14px';
+        statusEl.style.borderRadius = '10px';
         statusEl.innerHTML = `
           <div style="font-size:36px;margin-bottom:6px">🚫</div>
           <h3 style="margin:0 0 6px 0;font-size:16px;color:#ef4444">Sorry, You are Out of Range!</h3>
@@ -384,7 +397,7 @@ async function closeCameraQrScanner(){
 
 function onCameraQrCodeScanned(scannedUrl){
   closeCameraQrScanner();
-  toast('📷 QR Code Scanned!');
+  if(typeof toast === 'function') toast('📷 QR Code Scanned!');
   try {
     let fullUrl = (scannedUrl || '').trim();
     if(fullUrl && !fullUrl.startsWith('http://') && !fullUrl.startsWith('https://')){
@@ -409,11 +422,11 @@ function onCameraQrCodeScanned(scannedUrl){
       window.history.pushState({}, '', newSearch);
       openStudentPublicPortal(qrSession, email, gid);
     } else {
-      toast('Invalid Attendo QR code.');
+      if(typeof toast === 'function') toast('Invalid Attendo QR code.');
     }
   } catch(e){
     console.error('QR parse error:', e);
-    toast('Scanned code is not a valid URL.');
+    if(typeof toast === 'function') toast('Scanned code is not a valid URL.');
   }
 }
 
