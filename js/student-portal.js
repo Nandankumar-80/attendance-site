@@ -182,7 +182,7 @@ async function submitPublicStudentAttendance(){
   if(!publicPortalData) return;
   const select = document.getElementById('portalStudentSelect');
   const studentId = select ? select.value : '';
-  const statusEl = document.getElementById('portalStatusMessage');
+  const statusEl = document.getElementById('portalStatusMsg') || document.getElementById('portalStatusMessage');
   const btn = document.getElementById('portalSubmitBtn');
 
   if(!studentId){
