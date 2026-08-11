@@ -1,6 +1,6 @@
 /* ============================================================
    STUDENT PUBLIC MOBILE PORTAL (ZERO-LOGIN ATTENDANCE ROUTER)
-   WITH LIGHTNING-FAST 30m GEOFENCING & CLOUD ROSTER SYNC
+   WITH FAILSAFE GPS GEOFENCING & INSTANT LIVE CLOUD SYNC
 ============================================================ */
 let publicPortalData = null;
 
@@ -201,7 +201,7 @@ async function submitPublicStudentAttendance(){
     btn.textContent = 'Verifying Location...';
   }
 
-  // 30-Meter Geofence Fast Verification Check
+  // 30-Meter Geofence Validation Check with Hard Failsafe Timeout
   const params = new URLSearchParams(window.location.search);
   let tlat = parseFloat(params.get('tlat') || (publicPortalData && publicPortalData.tlat));
   let tlng = parseFloat(params.get('tlng') || (publicPortalData && publicPortalData.tlng));
@@ -211,7 +211,12 @@ async function submitPublicStudentAttendance(){
     try {
       const pos = await new Promise((resolve) => {
         if(navigator.geolocation){
-          navigator.geolocation.getCurrentPosition(resolve, () => resolve(null), { enableHighAccuracy: true, timeout: 1800, maximumAge: 60000 });
+          const hardTimer = setTimeout(() => resolve(null), 2500);
+          navigator.geolocation.getCurrentPosition(
+            (p) => { clearTimeout(hardTimer); resolve(p); },
+            (err) => { clearTimeout(hardTimer); resolve(null); },
+            { enableHighAccuracy: false, timeout: 2000, maximumAge: 30000 }
+          );
         } else {
           resolve(null);
         }
@@ -262,7 +267,6 @@ async function submitPublicStudentAttendance(){
     }
   }
 
-  // Instant UI Feedback
   if(btn){
     btn.disabled = true;
     btn.textContent = 'Submitting...';
