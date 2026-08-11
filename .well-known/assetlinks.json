@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "app.vercel.attendance_site_xi.twa",
+        "sha256_cert_fingerprints": ["1C:C8:B1:C8:DD:70:9E:39:42:86:FC:BC:A9:7B:81:B8:7C:54:D1:4A:C3:20:7A:F9:2E:CB:2E:20:02:F6:5D:0E"]
+      }
+    }]
