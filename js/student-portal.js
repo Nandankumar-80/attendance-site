@@ -117,9 +117,9 @@ async function openStudentPublicPortal(sessionId, email, gid){
     }
 
     if(!raw){
-      if(instEl) instEl.textContent = 'Session Expired';
-      if(subjDateEl) subjDateEl.textContent = 'Teacher dataset not found. Please ask teacher to refresh attendance session.';
-      if(select) select.innerHTML = '<option value="">Data not found</option>';
+      if(instEl) instEl.textContent = 'Ready to Scan Classroom QR';
+      if(subjDateEl) subjDateEl.textContent = 'Please tap "📷 Open Live Camera QR Scanner" above to scan your teacher\'s active QR code.';
+      if(select) select.innerHTML = '<option value="">Scan active classroom QR code</option>';
       return;
     }
 
