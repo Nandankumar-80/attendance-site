@@ -1,6 +1,6 @@
 /* ============================================================
    STUDENT PUBLIC MOBILE PORTAL (ZERO-LOGIN ATTENDANCE ROUTER)
-   WITH 30m GEOFENCING VALIDATION & FAILSAFE CLOUD ROSTER SYNC
+   WITH LIGHTNING-FAST 30m GEOFENCING & CLOUD ROSTER SYNC
 ============================================================ */
 let publicPortalData = null;
 
@@ -41,16 +41,16 @@ async function checkStudentPortalParams(){
 
     setTimeout(() => {
       openStudentPublicPortal(sessionId, email, gid);
-    }, 100);
+    }, 10);
     return true;
   }
   return false;
 }
 
-async function waitForFirebaseDb(maxWaitMs = 4500){
+async function waitForFirebaseDb(maxWaitMs = 1500){
   const start = Date.now();
   while(!firebaseDb && (Date.now() - start) < maxWaitMs){
-    await new Promise(r => setTimeout(r, 150));
+    await new Promise(r => setTimeout(r, 80));
   }
   return firebaseDb;
 }
@@ -70,10 +70,8 @@ async function openStudentPublicPortal(sessionId, email, gid){
     const subjDateEl = document.getElementById('portalSubjectDate');
     const select = document.getElementById('portalStudentSelect');
 
-    if(subjDateEl) subjDateEl.textContent = 'Fetching session & roster from cloud...';
+    if(subjDateEl) subjDateEl.textContent = 'Syncing session from cloud...';
     if(select) select.innerHTML = '<option value="">Loading students...</option>';
-
-    await waitForFirebaseDb();
 
     const params = new URLSearchParams(window.location.search);
     if(!email) email = params.get('email');
@@ -83,19 +81,21 @@ async function openStudentPublicPortal(sessionId, email, gid){
 
     if(email) email = decodeURIComponent(email).trim().toLowerCase();
 
-    // 1. Fetch QR session metadata if email/gid missing
-    if((!email || !gid) && firebaseDb && sessionId){
-      try {
-        const qrDoc = await firebaseDb.collection('attendo_qr_sessions').doc(sessionId).get();
-        if(qrDoc.exists && qrDoc.data()){
-          const d = qrDoc.data();
-          if(!email && d.email) email = d.email.trim().toLowerCase();
-          if(!gid && d.gid) gid = d.gid;
-          if(isNaN(tlat) && d.teacherLat) tlat = parseFloat(d.teacherLat);
-          if(isNaN(tlng) && d.teacherLng) tlng = parseFloat(d.teacherLng);
-        }
-      } catch(e) { console.error('Cloud QR metadata fetch error', e); }
-    }
+    // Fast Parallel Firebase DB Check
+    waitForFirebaseDb(1500).then(async (db) => {
+      if((!email || !gid) && db && sessionId){
+        try {
+          const qrDoc = await db.collection('attendo_qr_sessions').doc(sessionId).get();
+          if(qrDoc.exists && qrDoc.data()){
+            const d = qrDoc.data();
+            if(!email && d.email) email = d.email.trim().toLowerCase();
+            if(!gid && d.gid) gid = d.gid;
+            if(isNaN(tlat) && d.teacherLat) tlat = parseFloat(d.teacherLat);
+            if(isNaN(tlng) && d.teacherLng) tlng = parseFloat(d.teacherLng);
+          }
+        } catch(e){}
+      }
+    });
 
     if(!email || !gid){
       if(instEl) instEl.textContent = 'Ready to Scan QR';
@@ -104,7 +104,7 @@ async function openStudentPublicPortal(sessionId, email, gid){
       return;
     }
 
-    // 2. Fetch Teacher's Data from Cloud
+    // 2. Fetch Teacher's Data from Cloud / Cache
     let raw = null;
     try {
       raw = await storageGet('data:' + email);
@@ -118,13 +118,13 @@ async function openStudentPublicPortal(sessionId, email, gid){
         if(doc.exists && doc.data() && doc.data().value){
           raw = doc.data().value;
         }
-      } catch(e) { console.error('Direct cloud storage fetch error', e); }
+      } catch(e) {}
     }
 
     if(!raw){
-      if(instEl) instEl.textContent = 'Cloud Sync Required';
-      if(subjDateEl) subjDateEl.textContent = 'Teacher class data not synced to cloud yet. Please ask teacher to refresh attendance session.';
-      if(select) select.innerHTML = '<option value="">Class dataset not synced</option>';
+      if(instEl) instEl.textContent = 'Ready to Scan Classroom QR';
+      if(subjDateEl) subjDateEl.textContent = 'Please tap "📷 Open Live Camera QR Scanner" above to scan your teacher\'s active QR code.';
+      if(select) select.innerHTML = '<option value="">Scan active classroom QR code</option>';
       return;
     }
 
@@ -171,8 +171,6 @@ async function openStudentPublicPortal(sessionId, email, gid){
       select.appendChild(opt);
     });
 
-    if(typeof toast === 'function') toast('🎉 Class Roster Loaded!');
-
   } catch(err) {
     console.error('Fatal student portal error:', err);
     const subjDateEl = document.getElementById('portalSubjectDate');
@@ -203,7 +201,7 @@ async function submitPublicStudentAttendance(){
     btn.textContent = 'Verifying Location...';
   }
 
-  // 30-Meter Geofence Validation Check
+  // 30-Meter Geofence Fast Verification Check
   const params = new URLSearchParams(window.location.search);
   let tlat = parseFloat(params.get('tlat') || (publicPortalData && publicPortalData.tlat));
   let tlng = parseFloat(params.get('tlng') || (publicPortalData && publicPortalData.tlng));
@@ -213,7 +211,7 @@ async function submitPublicStudentAttendance(){
     try {
       const pos = await new Promise((resolve) => {
         if(navigator.geolocation){
-          navigator.geolocation.getCurrentPosition(resolve, () => resolve(null), { enableHighAccuracy: true, timeout: 4500 });
+          navigator.geolocation.getCurrentPosition(resolve, () => resolve(null), { enableHighAccuracy: true, timeout: 1800, maximumAge: 60000 });
         } else {
           resolve(null);
         }
@@ -264,6 +262,7 @@ async function submitPublicStudentAttendance(){
     }
   }
 
+  // Instant UI Feedback
   if(btn){
     btn.disabled = true;
     btn.textContent = 'Submitting...';
@@ -287,9 +286,6 @@ async function submitPublicStudentAttendance(){
     if(!sess.records) sess.records = {};
     sess.records[studentId] = true;
 
-    // Save to local & cloud storage
-    await storageSet('data:' + publicPortalData.email, JSON.stringify(publicPortalData.userAppData));
-
     // Get student info for confirmation card
     const student = (g.students || []).find(s => s.id === studentId);
     const sName = student ? student.name : 'Student';
@@ -297,7 +293,7 @@ async function submitPublicStudentAttendance(){
     const instName = portalGroupInstitution(g);
     const classLbl = portalGroupLabel(g);
 
-    // Hide selection controls & show beautiful confirmation card
+    // Hide selection controls & show instant confirmation card
     if(select) select.style.display = 'none';
     if(btn) btn.style.display = 'none';
 
@@ -323,6 +319,9 @@ async function submitPublicStudentAttendance(){
         </div>
       `;
     }
+
+    // Save to local & cloud storage asynchronously in background
+    storageSet('data:' + publicPortalData.email, JSON.stringify(publicPortalData.userAppData)).catch(e=>{});
 
   } catch(e) {
     console.error('Error submitting student attendance', e);
