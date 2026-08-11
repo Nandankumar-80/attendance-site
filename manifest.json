@@ -1,13 +1,17 @@
 {
-  "name": "Attendo — Attendance Manager",
+  "id": "/",
+  "name": "Attendo — Smart Attendance & Assessment",
   "short_name": "Attendo",
-  "description": "Mobile-first attendance manager for teachers — take roll call, track monthly attendance, and export PDF reports.",
-  "start_url": "./index.html",
-  "scope": "./",
+  "description": "Mobile-first attendance manager for teachers — take roll call, track monthly attendance, 30m geofencing, and export PDF reports.",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
   "orientation": "portrait",
   "background_color": "#0a0a12",
   "theme_color": "#7c3aed",
+  "lang": "en-IN",
+  "categories": ["education", "productivity", "utilities"],
   "icons": [
     {
       "src": "icon-192.png",
@@ -20,6 +24,15 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Scan QR Attendance",
+      "short_name": "Scan QR",
+      "description": "Open live camera scanner to mark attendance",
+      "url": "/?action=scan",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
     }
   ]
 }

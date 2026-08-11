@@ -38,6 +38,6 @@ window.addEventListener('DOMContentLoaded', async () => {
 /* ---------- PWA: Register Service Worker ---------- */
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
-    navigator.serviceWorker.register('service-worker.js').catch(e=>console.log('SW registration failed', e));
+    navigator.serviceWorker.register('service-worker.js', { scope: './' }).catch(e=>console.log('SW registration failed', e));
   });
 }
