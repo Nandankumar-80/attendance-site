@@ -49,7 +49,7 @@ async function startQrAttendanceSession(){
     subject: subjectStr,
     teacherLat: teacherLat,
     teacherLng: teacherLng,
-    geoRadius: 30,
+    geoRadius: 10,
     createdAt: Date.now(),
     expiresAt: Date.now() + (5 * 60 * 1000)
   };

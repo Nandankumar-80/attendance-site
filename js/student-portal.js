@@ -289,11 +289,11 @@ async function submitPublicStudentAttendance(){
     btn.textContent = 'Verifying Location...';
   }
 
-  // 30-Meter Geofence Validation Check with Hard Failsafe Timeout
+  // 10-Meter Geofence Validation Check with Hard Failsafe Timeout
   const params = new URLSearchParams(window.location.search);
   let tlat = parseFloat(params.get('tlat') || (publicPortalData && publicPortalData.tlat));
   let tlng = parseFloat(params.get('tlng') || (publicPortalData && publicPortalData.tlng));
-  let geoNote = '📍 Verified (Within 30m Classroom Radius)';
+  let geoNote = '📍 Verified (Within 10m Classroom Radius)';
 
   if(!isNaN(tlat) && !isNaN(tlng)){
     let sLat = null, sLng = null;
@@ -318,7 +318,7 @@ async function submitPublicStudentAttendance(){
 
     if(sLat !== null && sLng !== null){
       const distMeters = calculateHaversineDistanceMeters(tlat, tlng, sLat, sLng);
-      if(distMeters > 30){
+      if(distMeters > 10){
         if(btn){
           btn.disabled = false;
           btn.textContent = '✅ Mark Me Present';
@@ -332,8 +332,8 @@ async function submitPublicStudentAttendance(){
           statusEl.style.borderRadius = '10px';
           statusEl.innerHTML = `
             <div style="font-size:36px;margin-bottom:6px">🚫</div>
-            <h3 style="margin:0 0 6px 0;font-size:16px;color:#ef4444">Sorry, You are Out of Range!</h3>
-            <p style="margin:0;font-size:13px;line-height:1.5">You are currently <b>${distMeters} meters</b> away from the classroom.<br><span style="font-size:12px;color:var(--text-dim)">Geofenced attendance is restricted to within <b>30 meters</b> of the teacher.</span></p>
+            <h3 style="margin:0 0 6px 0;font-size:16px;color:#ef4444">Sorry, You are Far Away!</h3>
+            <p style="margin:0;font-size:13px;line-height:1.5">You are currently <b>${distMeters} meters</b> away from the teacher.<br><span style="font-size:12px;color:var(--text-dim)">Geofenced attendance is restricted to within <b>10 meters</b> of the teacher.</span></p>
           `;
         }
         return;
