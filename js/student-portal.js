@@ -1,6 +1,6 @@
 /* ============================================================
    STUDENT PUBLIC MOBILE PORTAL (ZERO-LOGIN ATTENDANCE ROUTER)
-   WITH FAILSAFE GPS GEOFENCING & INSTANT LIVE CLOUD SYNC
+   WITH STRICT 5-MIN EXPIRY & SINGLE-DEVICE ATTENDANCE LOCK
 ============================================================ */
 let publicPortalData = null;
 
@@ -69,6 +69,8 @@ async function openStudentPublicPortal(sessionId, email, gid){
     const classEl = document.getElementById('portalClassDetails');
     const subjDateEl = document.getElementById('portalSubjectDate');
     const select = document.getElementById('portalStudentSelect');
+    const statusEl = document.getElementById('portalStatusMsg') || document.getElementById('portalStatusMessage');
+    const btn = document.getElementById('portalSubmitBtn');
 
     if(subjDateEl) subjDateEl.textContent = 'Syncing session from cloud...';
     if(select) select.innerHTML = '<option value="">Loading students...</option>';
@@ -81,21 +83,46 @@ async function openStudentPublicPortal(sessionId, email, gid){
 
     if(email) email = decodeURIComponent(email).trim().toLowerCase();
 
-    // Fast Parallel Firebase DB Check
-    waitForFirebaseDb(1500).then(async (db) => {
-      if((!email || !gid) && db && sessionId){
-        try {
-          const qrDoc = await db.collection('attendo_qr_sessions').doc(sessionId).get();
-          if(qrDoc.exists && qrDoc.data()){
-            const d = qrDoc.data();
-            if(!email && d.email) email = d.email.trim().toLowerCase();
-            if(!gid && d.gid) gid = d.gid;
-            if(isNaN(tlat) && d.teacherLat) tlat = parseFloat(d.teacherLat);
-            if(isNaN(tlng) && d.teacherLng) tlng = parseFloat(d.teacherLng);
+    // 1. Strict 5-Minute Expiry Verification from Cloud Firestore
+    const db = await waitForFirebaseDb(1500);
+    let sessionData = null;
+    if(db && sessionId){
+      try {
+        const qrDoc = await db.collection('attendo_qr_sessions').doc(sessionId).get();
+        if(qrDoc.exists && qrDoc.data()){
+          sessionData = qrDoc.data();
+          if(!email && sessionData.email) email = sessionData.email.trim().toLowerCase();
+          if(!gid && sessionData.gid) gid = sessionData.gid;
+          if(isNaN(tlat) && sessionData.teacherLat) tlat = parseFloat(sessionData.teacherLat);
+          if(isNaN(tlng) && sessionData.teacherLng) tlng = parseFloat(sessionData.teacherLng);
+
+          // Expiry Check (5 minutes = 300,000 ms)
+          const now = Date.now();
+          const expiresAt = sessionData.expiresAt || (sessionData.createdAt ? sessionData.createdAt + 300000 : 0);
+          if(expiresAt && now > expiresAt){
+            if(instEl) instEl.textContent = 'Session Expired';
+            if(subjDateEl) subjDateEl.textContent = '🚫 5-Minute QR Session Expired! Please ask your teacher for a fresh QR code.';
+            if(select) select.style.display = 'none';
+            if(btn) btn.style.display = 'none';
+            if(statusEl){
+              statusEl.style.display = 'block';
+              statusEl.style.background = 'rgba(239,68,68,0.15)';
+              statusEl.style.color = '#ef4444';
+              statusEl.style.border = '1px solid rgba(239,68,68,0.3)';
+              statusEl.style.padding = '18px';
+              statusEl.style.borderRadius = '12px';
+              statusEl.style.textAlign = 'center';
+              statusEl.innerHTML = `
+                <div style="font-size:36px;margin-bottom:6px">🚫</div>
+                <h3 style="margin:0 0 6px 0;font-size:16px;color:#ef4444">QR Code Session Expired!</h3>
+                <p style="margin:0;font-size:13px;line-height:1.5">This 5-minute QR code has expired.<br><span style="font-size:12px;color:var(--text-dim)">Please ask your teacher to generate a fresh classroom QR code.</span></p>
+              `;
+            }
+            return;
           }
-        } catch(e){}
-      }
-    });
+        }
+      } catch(e){}
+    }
 
     if(!email || !gid){
       if(instEl) instEl.textContent = 'Ready to Scan QR';
@@ -148,6 +175,33 @@ async function openStudentPublicPortal(sessionId, email, gid){
       targetGroup
     };
 
+    // 3. Single Device / Duplicate Registration Check
+    const alreadyMarked = localStorage.getItem('attendo_marked_' + sessionId);
+    if(alreadyMarked){
+      const instName = portalGroupInstitution(targetGroup);
+      const classLbl = portalGroupLabel(targetGroup);
+      if(instEl) instEl.textContent = instName;
+      if(classEl) classEl.textContent = classLbl;
+      if(subjDateEl) subjDateEl.textContent = `Attendance Already Registered`;
+      if(select) select.style.display = 'none';
+      if(btn) btn.style.display = 'none';
+      if(statusEl){
+        statusEl.style.display = 'block';
+        statusEl.style.background = 'rgba(245,158,11,0.15)';
+        statusEl.style.color = '#f59e0b';
+        statusEl.style.border = '1px solid rgba(245,158,11,0.3)';
+        statusEl.style.padding = '18px';
+        statusEl.style.borderRadius = '12px';
+        statusEl.style.textAlign = 'center';
+        statusEl.innerHTML = `
+          <div style="font-size:36px;margin-bottom:6px">⚠️</div>
+          <h3 style="margin:0 0 6px 0;font-size:16px;color:#f59e0b">Already Registered!</h3>
+          <p style="margin:0;font-size:13px;line-height:1.5">You have already registered your attendance for this session from this device.<br><span style="font-size:12px;color:var(--text-dim)">Duplicate submissions are restricted.</span></p>
+        `;
+      }
+      return;
+    }
+
     const instName = portalGroupInstitution(targetGroup);
     const classLbl = portalGroupLabel(targetGroup);
     const todayStr = new Date().toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' });
@@ -162,6 +216,10 @@ async function openStudentPublicPortal(sessionId, email, gid){
       if(select) select.innerHTML = '<option value="">No students in roster yet</option>';
       return;
     }
+
+    select.style.display = 'block';
+    if(btn) btn.style.display = 'block';
+    if(statusEl) statusEl.style.display = 'none';
 
     select.innerHTML = '<option value="">-- Select Your Roll No / Name --</option>';
     sortedStudents.forEach(s => {
@@ -194,6 +252,36 @@ async function submitPublicStudentAttendance(){
       statusEl.textContent = 'Please select your Roll Number / Name first.';
     }
     return;
+  }
+
+  // Double Check Session Expiry before submitting
+  if(firebaseDb && publicPortalData.sessionId){
+    try {
+      const qrDoc = await firebaseDb.collection('attendo_qr_sessions').doc(publicPortalData.sessionId).get();
+      if(qrDoc.exists && qrDoc.data()){
+        const d = qrDoc.data();
+        const expiresAt = d.expiresAt || (d.createdAt ? d.createdAt + 300000 : 0);
+        if(expiresAt && Date.now() > expiresAt){
+          if(select) select.style.display = 'none';
+          if(btn) btn.style.display = 'none';
+          if(statusEl){
+            statusEl.style.display = 'block';
+            statusEl.style.background = 'rgba(239,68,68,0.15)';
+            statusEl.style.color = '#ef4444';
+            statusEl.style.border = '1px solid rgba(239,68,68,0.3)';
+            statusEl.style.padding = '18px';
+            statusEl.style.borderRadius = '12px';
+            statusEl.style.textAlign = 'center';
+            statusEl.innerHTML = `
+              <div style="font-size:36px;margin-bottom:6px">🚫</div>
+              <h3 style="margin:0 0 6px 0;font-size:16px;color:#ef4444">QR Code Session Expired!</h3>
+              <p style="margin:0;font-size:13px;line-height:1.5">This 5-minute QR code has expired.<br><span style="font-size:12px;color:var(--text-dim)">Please ask your teacher to generate a fresh classroom QR code.</span></p>
+            `;
+          }
+          return;
+        }
+      }
+    } catch(e){}
   }
 
   if(btn){
@@ -286,6 +374,11 @@ async function submitPublicStudentAttendance(){
     const sRoll = student ? student.rollNo : '';
     const instName = portalGroupInstitution(g);
     const classLbl = portalGroupLabel(g);
+
+    // Save device lock token to prevent duplicate submissions from same phone
+    try {
+      localStorage.setItem('attendo_marked_' + publicPortalData.sessionId, studentId);
+    } catch(e){}
 
     // Hide selection controls & show instant confirmation card
     if(select) select.style.display = 'none';

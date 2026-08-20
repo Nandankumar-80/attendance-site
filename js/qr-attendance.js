@@ -23,10 +23,16 @@ async function startQrAttendanceSession(){
   let teacherLat = null;
   let teacherLng = null;
 
+  // Fast non-blocking GPS capture (1.2s timeout so QR modal opens instantly)
   if(navigator.geolocation){
     try {
       const pos = await new Promise((resolve) => {
-        navigator.geolocation.getCurrentPosition(resolve, () => resolve(null), { enableHighAccuracy: true, timeout: 3500 });
+        const timer = setTimeout(() => resolve(null), 1200);
+        navigator.geolocation.getCurrentPosition(
+          (p) => { clearTimeout(timer); resolve(p); },
+          (err) => { clearTimeout(timer); resolve(null); },
+          { enableHighAccuracy: false, timeout: 1000, maximumAge: 60000 }
+        );
       });
       if(pos && pos.coords){
         teacherLat = pos.coords.latitude;
@@ -137,19 +143,23 @@ function listenLiveQrSubmissions(){
   if(qrLiveUnsub) qrLiveUnsub();
   const countEl = document.getElementById('qrLiveCount');
   const g = getGroup();
-  if(countEl && g) countEl.textContent = `0 / ${g.students.length}`;
+  if(countEl && g) countEl.textContent = `${qrMarkedStudentIds.size} / ${g.students.length}`;
 
   if(!firebaseDb || !currentUser) return;
 
-  // 1. Direct Real-time QR Session Listener (Instant Sub-Second Count Trigger)
+  // 1. Direct Real-time QR Session Listener (Syncs Live Headcount AND saves to qrMarkedStudentIds!)
   if(activeQrSessionId){
     try {
       firebaseDb.collection('attendo_qr_sessions').doc(activeQrSessionId).onSnapshot(doc => {
         if(doc && doc.exists && doc.data()){
           const d = doc.data();
           if(d.records){
-            const markedCount = Object.keys(d.records).length;
+            Object.keys(d.records).forEach(sid => {
+              if(d.records[sid]) qrMarkedStudentIds.add(sid);
+            });
+            const markedCount = qrMarkedStudentIds.size;
             if(countEl && g) countEl.textContent = `${markedCount} / ${g.students.length}`;
+            if(typeof verifyHeadcountMatch === 'function') verifyHeadcountMatch();
           }
         }
       });
@@ -166,9 +176,13 @@ function listenLiveQrSubmissions(){
         if(remoteGroup){
           const sess = (remoteGroup.sessions || []).find(s => s.id === activeQrSessionId);
           if(sess && sess.records){
-            const markedCount = Object.values(sess.records).filter(Boolean).length;
-            if(countEl) countEl.textContent = `${markedCount} / ${remoteGroup.students.length}`;
+            Object.keys(sess.records).forEach(sid => {
+              if(sess.records[sid]) qrMarkedStudentIds.add(sid);
+            });
+            const markedCount = qrMarkedStudentIds.size;
+            if(countEl && g) countEl.textContent = `${markedCount} / ${remoteGroup.students.length}`;
             appData = remoteData;
+            if(typeof verifyHeadcountMatch === 'function') verifyHeadcountMatch();
           }
         }
       } catch(e){}
@@ -213,8 +227,7 @@ function verifyHeadcountMatch(){
     return;
   }
   const pCount = parseInt(physicalInput, 10);
-  const liveText = document.getElementById('qrLiveCount')?.textContent || '0';
-  const appCount = parseInt(liveText.split('/')[0], 10) || qrMarkedStudentIds.size;
+  const appCount = qrMarkedStudentIds.size;
 
   badge.style.display = 'block';
   if(pCount === appCount){
@@ -291,6 +304,7 @@ async function finishQrSessionAndSave(){
     g.sessions.push(sess);
   }
 
+  if(!sess.records) sess.records = {};
   g.students.forEach(s => {
     if(qrMarkedStudentIds.has(s.id)) sess.records[s.id] = true;
   });
@@ -299,5 +313,5 @@ async function finishQrSessionAndSave(){
   closeQrModal();
   renderSessionList();
   renderGroupGrid();
-  toast(`Attendance approved & saved! (${Object.values(sess.records).filter(Boolean).length}/${g.students.length} present)`);
+  toast(`🎉 Attendance approved & saved! (${Object.values(sess.records).filter(Boolean).length}/${g.students.length} present)`);
 }
