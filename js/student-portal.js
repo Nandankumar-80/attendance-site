@@ -289,7 +289,7 @@ async function submitPublicStudentAttendance(){
     btn.textContent = 'Verifying Location...';
   }
 
-  // 10-Meter Geofence Validation Check with Hard Failsafe Timeout
+  // Strict Pin-Point 10-Meter Hardware GPS Geofence Check
   const params = new URLSearchParams(window.location.search);
   let tlat = parseFloat(params.get('tlat') || (publicPortalData && publicPortalData.tlat));
   let tlng = parseFloat(params.get('tlng') || (publicPortalData && publicPortalData.tlng));
@@ -300,11 +300,11 @@ async function submitPublicStudentAttendance(){
     try {
       const pos = await new Promise((resolve) => {
         if(navigator.geolocation){
-          const hardTimer = setTimeout(() => resolve(null), 2500);
+          const hardTimer = setTimeout(() => resolve(null), 4000);
           navigator.geolocation.getCurrentPosition(
             (p) => { clearTimeout(hardTimer); resolve(p); },
             (err) => { clearTimeout(hardTimer); resolve(null); },
-            { enableHighAccuracy: false, timeout: 2000, maximumAge: 30000 }
+            { enableHighAccuracy: true, timeout: 3500, maximumAge: 0 }
           );
         } else {
           resolve(null);
@@ -316,30 +316,43 @@ async function submitPublicStudentAttendance(){
       }
     } catch(e){}
 
-    if(sLat !== null && sLng !== null){
-      const distMeters = calculateHaversineDistanceMeters(tlat, tlng, sLat, sLng);
-      if(distMeters > 10){
-        if(btn){
-          btn.disabled = false;
-          btn.textContent = '✅ Mark Me Present';
-        }
-        if(statusEl){
-          statusEl.style.display = 'block';
-          statusEl.style.background = 'rgba(248,113,113,0.15)';
-          statusEl.style.color = 'var(--red)';
-          statusEl.style.border = '1px solid rgba(248,113,113,0.3)';
-          statusEl.style.padding = '14px';
-          statusEl.style.borderRadius = '10px';
-          statusEl.innerHTML = `
-            <div style="font-size:36px;margin-bottom:6px">🚫</div>
-            <h3 style="margin:0 0 6px 0;font-size:16px;color:#ef4444">Sorry, You are Far Away!</h3>
-            <p style="margin:0;font-size:13px;line-height:1.5">You are currently <b>${distMeters} meters</b> away from the teacher.<br><span style="font-size:12px;color:var(--text-dim)">Geofenced attendance is restricted to within <b>10 meters</b> of the teacher.</span></p>
-          `;
-        }
-        return;
+    if(sLat === null || sLng === null){
+      if(btn){
+        btn.disabled = false;
+        btn.textContent = '✅ Mark Me Present';
       }
-    } else {
-      geoNote = '📍 Registered (GPS Verification Skipped)';
+      if(statusEl){
+        statusEl.style.display = 'block';
+        statusEl.style.background = 'rgba(248,113,113,0.15)';
+        statusEl.style.color = 'var(--red)';
+        statusEl.style.border = '1px solid rgba(248,113,113,0.3)';
+        statusEl.style.padding = '14px';
+        statusEl.style.borderRadius = '10px';
+        statusEl.innerHTML = '📍 <b>GPS Location Access Required!</b><br>Strict 10-meter geofenced attendance requires high-accuracy GPS location on your phone. Please turn on Location/GPS and allow permission.';
+      }
+      return;
+    }
+
+    const distMeters = calculateHaversineDistanceMeters(tlat, tlng, sLat, sLng);
+    if(distMeters > 10){
+      if(btn){
+        btn.disabled = false;
+        btn.textContent = '✅ Mark Me Present';
+      }
+      if(statusEl){
+        statusEl.style.display = 'block';
+        statusEl.style.background = 'rgba(248,113,113,0.15)';
+        statusEl.style.color = 'var(--red)';
+        statusEl.style.border = '1px solid rgba(248,113,113,0.3)';
+        statusEl.style.padding = '14px';
+        statusEl.style.borderRadius = '10px';
+        statusEl.innerHTML = `
+          <div style="font-size:36px;margin-bottom:6px">🚫</div>
+          <h3 style="margin:0 0 6px 0;font-size:16px;color:#ef4444">Sorry, You are Far Away!</h3>
+          <p style="margin:0;font-size:13px;line-height:1.5">You are currently <b>${distMeters} meters</b> away from the teacher.<br><span style="font-size:12px;color:var(--text-dim)">Geofenced attendance is restricted to within <b>10 meters</b> of the teacher.</span></p>
+        `;
+      }
+      return;
     }
   }
 

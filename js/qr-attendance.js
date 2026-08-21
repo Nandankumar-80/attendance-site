@@ -23,15 +23,15 @@ async function startQrAttendanceSession(){
   let teacherLat = null;
   let teacherLng = null;
 
-  // Fast non-blocking GPS capture (1.2s timeout so QR modal opens instantly)
+  // Pin-point High-Accuracy Hardware GPS Capture
   if(navigator.geolocation){
     try {
       const pos = await new Promise((resolve) => {
-        const timer = setTimeout(() => resolve(null), 1200);
+        const timer = setTimeout(() => resolve(null), 3500);
         navigator.geolocation.getCurrentPosition(
           (p) => { clearTimeout(timer); resolve(p); },
           (err) => { clearTimeout(timer); resolve(null); },
-          { enableHighAccuracy: false, timeout: 1000, maximumAge: 60000 }
+          { enableHighAccuracy: true, timeout: 3000, maximumAge: 0 }
         );
       });
       if(pos && pos.coords){
