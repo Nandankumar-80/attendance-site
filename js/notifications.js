@@ -119,11 +119,33 @@ function updateNotifBadge(){
 }
 
 function openNotifModal(){
-  const backdrop = document.getElementById('notifModalBackdrop');
-  if(backdrop) {
-    backdrop.style.cssText = "position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(5,5,10,0.85);display:flex !important;align-items:center;justify-content:center;z-index:999999;padding:20px;backdrop-filter:blur(4px);";
-    backdrop.classList.add('show');
+  let backdrop = document.getElementById('notifModalBackdrop');
+  if(!backdrop) {
+    backdrop = document.createElement('div');
+    backdrop.id = 'notifModalBackdrop';
+    backdrop.className = 'modal-backdrop';
+    backdrop.onclick = (e) => { if(e.target === backdrop) closeNotifModal(); };
+    backdrop.innerHTML = `
+      <div class="modal" style="max-width:480px;width:92%">
+        <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;border-bottom:1px solid var(--border);padding-bottom:10px">
+          <h3 style="margin:0;font-size:17px;display:flex;align-items:center;gap:8px">🔔 Smart Notification Center</h3>
+          <button class="icon-btn" onclick="closeNotifModal()" style="font-size:18px;color:var(--text-dim);background:none;border:none;cursor:pointer">✕</button>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <span style="font-size:12px;color:var(--text-dim)">Active alerts & shortage notifications</span>
+          <button class="btn btn-sm btn-ghost" onclick="markAllNotifsRead()" style="color:var(--cyan);font-size:12px;padding:2px 8px">✓ Mark All as Read</button>
+        </div>
+        <div id="notifListContainer" style="max-height:360px;overflow-y:auto;padding-right:4px"></div>
+        <div class="modal-actions" style="margin-top:16px;text-align:right">
+          <button class="btn btn-secondary" onclick="closeNotifModal()">Close</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(backdrop);
   }
+
+  backdrop.style.cssText = "position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(5,5,10,0.85);display:flex !important;align-items:center;justify-content:center;z-index:999999;padding:20px;backdrop-filter:blur(4px);";
+  backdrop.classList.add('show');
 
   try { generateSmartNotifications(); } catch(e){ console.error('notif gen error', e); }
   try { renderNotifList(); } catch(e){ console.error('notif render error', e); }

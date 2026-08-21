@@ -23,17 +23,35 @@ async function startQrAttendanceSession(){
   let teacherLat = null;
   let teacherLng = null;
 
-  // Pin-point High-Accuracy Hardware GPS Capture
+  // 2-Stage Robust Teacher GPS Location Engine
   if(navigator.geolocation){
     try {
       const pos = await new Promise((resolve) => {
-        const timer = setTimeout(() => resolve(null), 3500);
+        let resolved = false;
         navigator.geolocation.getCurrentPosition(
-          (p) => { clearTimeout(timer); resolve(p); },
-          (err) => { clearTimeout(timer); resolve(null); },
-          { enableHighAccuracy: true, timeout: 3000, maximumAge: 0 }
+          (p) => { if(!resolved){ resolved = true; resolve(p); } },
+          () => {
+            navigator.geolocation.getCurrentPosition(
+              (p2) => { if(!resolved){ resolved = true; resolve(p2); } },
+              () => { if(!resolved){ resolved = true; resolve(null); } },
+              { enableHighAccuracy: false, timeout: 2000, maximumAge: 60000 }
+            );
+          },
+          { enableHighAccuracy: true, timeout: 2500, maximumAge: 15000 }
         );
+
+        setTimeout(() => {
+          if(!resolved){
+            resolved = true;
+            navigator.geolocation.getCurrentPosition(
+              (p3) => resolve(p3),
+              () => resolve(null),
+              { enableHighAccuracy: false, timeout: 1500, maximumAge: 120000 }
+            );
+          }
+        }, 3000);
       });
+
       if(pos && pos.coords){
         teacherLat = pos.coords.latitude;
         teacherLng = pos.coords.longitude;

@@ -294,11 +294,11 @@ async function submitPublicStudentAttendance(){
     btn.textContent = 'Verifying Location...';
   }
 
-  // Mandatory Strict 10-Meter Hardware GPS Geofence Check with Fast 1.8s Timeout
+  // 2-Stage Ultra-Consistent Hardware GPS Location Engine
   const params = new URLSearchParams(window.location.search);
   let tlat = parseFloat(params.get('tlat') || (publicPortalData && publicPortalData.tlat));
   let tlng = parseFloat(params.get('tlng') || (publicPortalData && publicPortalData.tlng));
-  let geoNote = '📍 Verified (Within 10m Classroom Radius)';
+  let geoNote = '📍 Verified (Within Classroom Radius)';
 
   // Cloud fallback for teacher location if missing in URL
   if((isNaN(tlat) || isNaN(tlng)) && firebaseDb && publicPortalData && publicPortalData.sessionId){
@@ -332,17 +332,36 @@ async function submitPublicStudentAttendance(){
   let sLat = null, sLng = null;
   try {
     const pos = await new Promise((resolve) => {
-      if(navigator.geolocation){
-        const hardTimer = setTimeout(() => resolve(null), 1800);
-        navigator.geolocation.getCurrentPosition(
-          (p) => { clearTimeout(hardTimer); resolve(p); },
-          (err) => { clearTimeout(hardTimer); resolve(null); },
-          { enableHighAccuracy: true, timeout: 1500, maximumAge: 10000 }
-        );
-      } else {
-        resolve(null);
-      }
+      if(!navigator.geolocation) return resolve(null);
+      let resolved = false;
+
+      // Stage 1: Fast High Accuracy
+      navigator.geolocation.getCurrentPosition(
+        (p) => { if(!resolved){ resolved = true; resolve(p); } },
+        () => {
+          // Stage 2: Instant Standard Fallback
+          navigator.geolocation.getCurrentPosition(
+            (p2) => { if(!resolved){ resolved = true; resolve(p2); } },
+            () => { if(!resolved){ resolved = true; resolve(null); } },
+            { enableHighAccuracy: false, timeout: 2000, maximumAge: 60000 }
+          );
+        },
+        { enableHighAccuracy: true, timeout: 2500, maximumAge: 15000 }
+      );
+
+      // Failsafe safety timer
+      setTimeout(() => {
+        if(!resolved){
+          resolved = true;
+          navigator.geolocation.getCurrentPosition(
+            (p3) => resolve(p3),
+            () => resolve(null),
+            { enableHighAccuracy: false, timeout: 1500, maximumAge: 120000 }
+          );
+        }
+      }, 3000);
     });
+
     if(pos && pos.coords){
       sLat = pos.coords.latitude;
       sLng = pos.coords.longitude;
@@ -361,13 +380,13 @@ async function submitPublicStudentAttendance(){
       statusEl.style.border = '1px solid rgba(248,113,113,0.3)';
       statusEl.style.padding = '14px';
       statusEl.style.borderRadius = '10px';
-      statusEl.innerHTML = '📍 <b>GPS Location Access Required!</b><br>Strict 10-meter geofenced attendance requires high-accuracy GPS location on your phone. Please turn on Location/GPS and allow permission.';
+      statusEl.innerHTML = '📍 <b>GPS Location Access Required!</b><br>Geofenced attendance requires location access on your phone. Please turn on Location/GPS, allow browser permission, and try again.';
     }
     return;
   }
 
   const distMeters = calculateHaversineDistanceMeters(tlat, tlng, sLat, sLng);
-  if(distMeters > 10){
+  if(distMeters > 30){
     if(btn){
       btn.disabled = false;
       btn.textContent = '✅ Mark Me Present';
@@ -382,7 +401,7 @@ async function submitPublicStudentAttendance(){
       statusEl.innerHTML = `
         <div style="font-size:36px;margin-bottom:6px">🚫</div>
         <h3 style="margin:0 0 6px 0;font-size:16px;color:#ef4444">Sorry, You are Far Away!</h3>
-        <p style="margin:0;font-size:13px;line-height:1.5">You are currently <b>${distMeters} meters</b> away from the teacher.<br><span style="font-size:12px;color:var(--text-dim)">Geofenced attendance is restricted to within <b>10 meters</b> of the teacher.</span></p>
+        <p style="margin:0;font-size:13px;line-height:1.5">You are currently <b>${distMeters} meters</b> away from the classroom.<br><span style="font-size:12px;color:var(--text-dim)">Geofenced attendance is restricted to the classroom radius.</span></p>
       `;
     }
     return;
