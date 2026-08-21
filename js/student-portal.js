@@ -309,33 +309,12 @@ async function submitPublicStudentAttendance(){
   try {
     const pos = await new Promise((resolve) => {
       if(!navigator.geolocation) return resolve(null);
-      let resolved = false;
-
-      // Stage 1: Fast High Accuracy
+      const hardTimer = setTimeout(() => resolve(null), 4500);
       navigator.geolocation.getCurrentPosition(
-        (p) => { if(!resolved){ resolved = true; resolve(p); } },
-        () => {
-          // Stage 2: Instant Standard Fallback
-          navigator.geolocation.getCurrentPosition(
-            (p2) => { if(!resolved){ resolved = true; resolve(p2); } },
-            () => { if(!resolved){ resolved = true; resolve(null); } },
-            { enableHighAccuracy: false, timeout: 2000, maximumAge: 60000 }
-          );
-        },
-        { enableHighAccuracy: true, timeout: 2500, maximumAge: 15000 }
+        (p) => { clearTimeout(hardTimer); resolve(p); },
+        (err) => { clearTimeout(hardTimer); resolve(null); },
+        { enableHighAccuracy: true, timeout: 4000, maximumAge: 0 }
       );
-
-      // Failsafe safety timer
-      setTimeout(() => {
-        if(!resolved){
-          resolved = true;
-          navigator.geolocation.getCurrentPosition(
-            (p3) => resolve(p3),
-            () => resolve(null),
-            { enableHighAccuracy: false, timeout: 1500, maximumAge: 120000 }
-          );
-        }
-      }, 3000);
     });
 
     if(pos && pos.coords){
@@ -356,7 +335,7 @@ async function submitPublicStudentAttendance(){
       statusEl.style.border = '1px solid rgba(248,113,113,0.3)';
       statusEl.style.padding = '14px';
       statusEl.style.borderRadius = '10px';
-      statusEl.innerHTML = '📍 <b>GPS Location Access Required!</b><br>Geofenced attendance requires location access on your phone. Please turn on Location/GPS, allow browser permission, and try again.';
+      statusEl.innerHTML = '📍 <b>GPS Location Access Required!</b><br>Strict 10-meter geofenced attendance requires high-accuracy GPS location on your phone. Please turn on Location/GPS, allow browser permission, and try again.';
     }
     return;
   }
@@ -370,7 +349,7 @@ async function submitPublicStudentAttendance(){
     if(statusEl){
       statusEl.style.display = 'block';
       statusEl.style.background = 'rgba(248,113,113,0.15)';
-      statusEl.style.color = 'var(--red)';
+      statusEl.style.color = '#ef4444';
       statusEl.style.border = '1px solid rgba(248,113,113,0.3)';
       statusEl.style.padding = '14px';
       statusEl.style.borderRadius = '10px';
