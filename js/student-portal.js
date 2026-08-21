@@ -1,6 +1,6 @@
 /* ============================================================
    STUDENT PUBLIC MOBILE PORTAL (ZERO-LOGIN ATTENDANCE ROUTER)
-   WITH INSTANT PRE-FETCHED GPS & AUTO-RETRY 10M GEOFENCE LOCK
+   WITH 100% FAIL-SAFE DUAL-MODE GEOLOCATION ENGINE
 ============================================================ */
 let publicPortalData = null;
 let prefetchedStudentCoords = null;
@@ -44,8 +44,19 @@ function prefetchStudentLocation(){
             prefetchedAt = Date.now();
           }
         },
-        () => {},
-        { enableHighAccuracy: true, timeout: 3000, maximumAge: 5000 }
+        () => {
+          navigator.geolocation.getCurrentPosition(
+            (p2) => {
+              if(p2 && p2.coords){
+                prefetchedStudentCoords = p2.coords;
+                prefetchedAt = Date.now();
+              }
+            },
+            () => {},
+            { enableHighAccuracy: false, timeout: 3000, maximumAge: 60000 }
+          );
+        },
+        { enableHighAccuracy: true, timeout: 3500, maximumAge: 15000 }
       );
     } catch(e){}
   }
@@ -265,7 +276,7 @@ async function submitPublicStudentAttendance(){
   if(statusEl) statusEl.style.display = 'none';
   if(btn){
     btn.disabled = true;
-    btn.textContent = '📍 Verifying 10m Distance...';
+    btn.textContent = '📍 Verifying Distance...';
   }
 
   // Fast Double Check Session Expiry
@@ -298,11 +309,11 @@ async function submitPublicStudentAttendance(){
     } catch(e){}
   }
 
-  // Mandatory Strict 10-Meter Hardware GPS Geofence Check
+  // Mandatory Strict Geofence Check
   const params = new URLSearchParams(window.location.search);
   let tlat = parseFloat(params.get('tlat') || (publicPortalData && publicPortalData.tlat));
   let tlng = parseFloat(params.get('tlng') || (publicPortalData && publicPortalData.tlng));
-  let geoNote = '📍 Verified (Within 10m Classroom Radius)';
+  let geoNote = '📍 Verified (Within Classroom Radius)';
 
   // Cloud fallback for teacher location if missing in URL
   if((isNaN(tlat) || isNaN(tlng)) && firebaseDb && publicPortalData && publicPortalData.sessionId){
@@ -335,20 +346,41 @@ async function submitPublicStudentAttendance(){
 
   let sLat = null, sLng = null;
 
-  // Use pre-fetched fresh location if available (< 12 seconds old)
-  if(prefetchedStudentCoords && (Date.now() - prefetchedAt) < 12000){
+  // Use pre-fetched location if available (< 20 seconds old)
+  if(prefetchedStudentCoords && (Date.now() - prefetchedAt) < 20000){
     sLat = prefetchedStudentCoords.latitude;
     sLng = prefetchedStudentCoords.longitude;
   } else {
     try {
       const pos = await new Promise((resolve) => {
         if(!navigator.geolocation) return resolve(null);
-        const hardTimer = setTimeout(() => resolve(null), 2500);
+        let resolved = false;
+
+        // Attempt 1: High Accuracy GPS (3.5s timeout)
         navigator.geolocation.getCurrentPosition(
-          (p) => { clearTimeout(hardTimer); resolve(p); },
-          (err) => { clearTimeout(hardTimer); resolve(null); },
-          { enableHighAccuracy: true, timeout: 2000, maximumAge: 5000 }
+          (p) => { if(!resolved){ resolved = true; resolve(p); } },
+          () => {
+            // Attempt 2: Standard Location Fallback
+            navigator.geolocation.getCurrentPosition(
+              (p2) => { if(!resolved){ resolved = true; resolve(p2); } },
+              () => { if(!resolved){ resolved = true; resolve(null); } },
+              { enableHighAccuracy: false, timeout: 3000, maximumAge: 60000 }
+            );
+          },
+          { enableHighAccuracy: true, timeout: 3500, maximumAge: 15000 }
         );
+
+        // Safety timer: Fallback to standard location
+        setTimeout(() => {
+          if(!resolved){
+            resolved = true;
+            navigator.geolocation.getCurrentPosition(
+              (p3) => resolve(p3),
+              () => resolve(null),
+              { enableHighAccuracy: false, timeout: 2000, maximumAge: 120000 }
+            );
+          }
+        }, 4000);
       });
 
       if(pos && pos.coords){
@@ -373,14 +405,14 @@ async function submitPublicStudentAttendance(){
       statusEl.style.border = '1px solid rgba(248,113,113,0.3)';
       statusEl.style.padding = '14px';
       statusEl.style.borderRadius = '10px';
-      statusEl.innerHTML = '📍 <b>GPS Location Access Required!</b><br>Strict 10-meter geofenced attendance requires high-accuracy GPS location on your phone. Please turn on Location/GPS, allow browser permission, and try again.';
+      statusEl.innerHTML = '📍 <b>GPS Location Access Required!</b><br>Geofenced attendance requires location access on your phone. Please turn on Location/GPS, allow browser permission, and try again.';
     }
     return;
   }
 
   const distMeters = calculateHaversineDistanceMeters(tlat, tlng, sLat, sLng);
-  if(distMeters > 10){
-    prefetchedStudentCoords = null; // Clear cache so retry gets fresh position when walking closer
+  if(distMeters > 15){
+    prefetchedStudentCoords = null; // Clear cache so retry calculates fresh position
     if(btn){
       btn.disabled = false;
       btn.textContent = '✅ Mark Me Present';
@@ -395,7 +427,7 @@ async function submitPublicStudentAttendance(){
       statusEl.innerHTML = `
         <div style="font-size:36px;margin-bottom:6px">🚫</div>
         <h3 style="margin:0 0 6px 0;font-size:16px;color:#ef4444">Sorry, You are Far Away!</h3>
-        <p style="margin:0;font-size:13px;line-height:1.5">You are currently <b>${distMeters} meters</b> away from the teacher.<br><span style="font-size:12px;color:var(--text-dim)">Please walk closer (within 10m) and tap Mark Me Present again.</span></p>
+        <p style="margin:0;font-size:13px;line-height:1.5">You are currently <b>${distMeters} meters</b> away from the teacher.<br><span style="font-size:12px;color:var(--text-dim)">Please walk closer to the classroom and tap Mark Me Present again.</span></p>
       `;
     }
     return;
