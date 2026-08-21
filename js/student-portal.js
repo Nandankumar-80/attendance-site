@@ -1,8 +1,10 @@
 /* ============================================================
    STUDENT PUBLIC MOBILE PORTAL (ZERO-LOGIN ATTENDANCE ROUTER)
-   WITH INSTANT 0ms ROSTER RENDER & STRICT 10M GEOFENCE LOCK
+   WITH INSTANT PRE-FETCHED GPS & AUTO-RETRY 10M GEOFENCE LOCK
 ============================================================ */
 let publicPortalData = null;
+let prefetchedStudentCoords = null;
+let prefetchedAt = 0;
 
 function calculateHaversineDistanceMeters(lat1, lon1, lat2, lon2) {
   const R = 6371000; // Earth radius in meters
@@ -32,6 +34,23 @@ function portalGroupInstitution(g){
   return g.type === 'college' ? (g.collegeName || 'College') : (g.schoolName || 'School');
 }
 
+function prefetchStudentLocation(){
+  if(navigator.geolocation){
+    try {
+      navigator.geolocation.getCurrentPosition(
+        (p) => {
+          if(p && p.coords){
+            prefetchedStudentCoords = p.coords;
+            prefetchedAt = Date.now();
+          }
+        },
+        () => {},
+        { enableHighAccuracy: true, timeout: 3000, maximumAge: 5000 }
+      );
+    } catch(e){}
+  }
+}
+
 async function checkStudentPortalParams(){
   const params = new URLSearchParams(window.location.search);
   if(params.has('qrSession')){
@@ -57,6 +76,9 @@ async function waitForFirebaseDb(maxWaitMs = 800){
 
 async function openStudentPublicPortal(sessionId, email, gid){
   try {
+    prefetchedStudentCoords = null;
+    prefetchStudentLocation();
+
     if(document.getElementById('authScreen')) document.getElementById('authScreen').style.display = 'none';
     if(document.getElementById('topbar')) document.getElementById('topbar').style.display = 'none';
     if(document.getElementById('dashboardScreen')) document.getElementById('dashboardScreen').style.display = 'none';
@@ -135,6 +157,8 @@ async function openStudentPublicPortal(sessionId, email, gid){
           opt.textContent = `${s.rollNo} — ${s.name}`;
           select.appendChild(opt);
         });
+
+        select.onchange = () => prefetchStudentLocation();
       }
     } else {
       if(subjDateEl) subjDateEl.textContent = 'Syncing session...';
@@ -230,9 +254,18 @@ async function submitPublicStudentAttendance(){
       statusEl.style.background = 'rgba(248,113,113,0.15)';
       statusEl.style.color = 'var(--red)';
       statusEl.style.border = '1px solid rgba(248,113,113,0.3)';
+      statusEl.style.padding = '14px';
+      statusEl.style.borderRadius = '10px';
       statusEl.textContent = 'Please select your Roll Number / Name first.';
     }
     return;
+  }
+
+  // Instant Reset UI on Click
+  if(statusEl) statusEl.style.display = 'none';
+  if(btn){
+    btn.disabled = true;
+    btn.textContent = '📍 Verifying 10m Distance...';
   }
 
   // Fast Double Check Session Expiry
@@ -263,11 +296,6 @@ async function submitPublicStudentAttendance(){
         }
       }
     } catch(e){}
-  }
-
-  if(btn){
-    btn.disabled = true;
-    btn.textContent = 'Verifying Location...';
   }
 
   // Mandatory Strict 10-Meter Hardware GPS Geofence Check
@@ -306,24 +334,34 @@ async function submitPublicStudentAttendance(){
   }
 
   let sLat = null, sLng = null;
-  try {
-    const pos = await new Promise((resolve) => {
-      if(!navigator.geolocation) return resolve(null);
-      const hardTimer = setTimeout(() => resolve(null), 4500);
-      navigator.geolocation.getCurrentPosition(
-        (p) => { clearTimeout(hardTimer); resolve(p); },
-        (err) => { clearTimeout(hardTimer); resolve(null); },
-        { enableHighAccuracy: true, timeout: 4000, maximumAge: 0 }
-      );
-    });
 
-    if(pos && pos.coords){
-      sLat = pos.coords.latitude;
-      sLng = pos.coords.longitude;
-    }
-  } catch(e){}
+  // Use pre-fetched fresh location if available (< 12 seconds old)
+  if(prefetchedStudentCoords && (Date.now() - prefetchedAt) < 12000){
+    sLat = prefetchedStudentCoords.latitude;
+    sLng = prefetchedStudentCoords.longitude;
+  } else {
+    try {
+      const pos = await new Promise((resolve) => {
+        if(!navigator.geolocation) return resolve(null);
+        const hardTimer = setTimeout(() => resolve(null), 2500);
+        navigator.geolocation.getCurrentPosition(
+          (p) => { clearTimeout(hardTimer); resolve(p); },
+          (err) => { clearTimeout(hardTimer); resolve(null); },
+          { enableHighAccuracy: true, timeout: 2000, maximumAge: 5000 }
+        );
+      });
+
+      if(pos && pos.coords){
+        sLat = pos.coords.latitude;
+        sLng = pos.coords.longitude;
+        prefetchedStudentCoords = pos.coords;
+        prefetchedAt = Date.now();
+      }
+    } catch(e){}
+  }
 
   if(sLat === null || sLng === null){
+    prefetchedStudentCoords = null;
     if(btn){
       btn.disabled = false;
       btn.textContent = '✅ Mark Me Present';
@@ -342,6 +380,7 @@ async function submitPublicStudentAttendance(){
 
   const distMeters = calculateHaversineDistanceMeters(tlat, tlng, sLat, sLng);
   if(distMeters > 10){
+    prefetchedStudentCoords = null; // Clear cache so retry gets fresh position when walking closer
     if(btn){
       btn.disabled = false;
       btn.textContent = '✅ Mark Me Present';
@@ -356,7 +395,7 @@ async function submitPublicStudentAttendance(){
       statusEl.innerHTML = `
         <div style="font-size:36px;margin-bottom:6px">🚫</div>
         <h3 style="margin:0 0 6px 0;font-size:16px;color:#ef4444">Sorry, You are Far Away!</h3>
-        <p style="margin:0;font-size:13px;line-height:1.5">You are currently <b>${distMeters} meters</b> away from the teacher.<br><span style="font-size:12px;color:var(--text-dim)">Geofenced attendance is restricted to within <b>10 meters</b> of the teacher.</span></p>
+        <p style="margin:0;font-size:13px;line-height:1.5">You are currently <b>${distMeters} meters</b> away from the teacher.<br><span style="font-size:12px;color:var(--text-dim)">Please walk closer (within 10m) and tap Mark Me Present again.</span></p>
       `;
     }
     return;
