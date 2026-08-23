@@ -193,12 +193,14 @@ async function openStudentPublicPortal(sessionId, email, gid){
               publicPortalData.tlng = tlng;
             }
 
-            // Expiry Check (5 minutes = 300,000 ms)
+            // Expiry Check (Clock-Skew Tolerant 12-Minute Window for Cross-Phone Sync)
             const now = Date.now();
-            const expiresAt = sessionData.expiresAt || (sessionData.createdAt ? sessionData.createdAt + 300000 : 0);
-            if(expiresAt && now > expiresAt){
+            const createdAt = sessionData.createdAt || 0;
+            const maxSessionAge = 12 * 60 * 1000; // 12 minutes tolerance
+            
+            if(createdAt > 0 && (now - createdAt) > maxSessionAge){
               if(instEl) instEl.textContent = 'Session Expired';
-              if(subjDateEl) subjDateEl.textContent = '🚫 5-Minute QR Session Expired! Please ask your teacher for a fresh QR code.';
+              if(subjDateEl) subjDateEl.textContent = '🚫 QR Session Expired! Please ask your teacher for a fresh QR code.';
               if(select) select.style.display = 'none';
               if(btn) btn.style.display = 'none';
               if(statusEl){
@@ -212,7 +214,7 @@ async function openStudentPublicPortal(sessionId, email, gid){
                 statusEl.innerHTML = `
                   <div style="font-size:36px;margin-bottom:6px">🚫</div>
                   <h3 style="margin:0 0 6px 0;font-size:16px;color:#ef4444">QR Code Session Expired!</h3>
-                  <p style="margin:0;font-size:13px;line-height:1.5">This 5-minute QR code has expired.<br><span style="font-size:12px;color:var(--text-dim)">Please ask your teacher to generate a fresh classroom QR code.</span></p>
+                  <p style="margin:0;font-size:13px;line-height:1.5">This QR code has expired.<br><span style="font-size:12px;color:var(--text-dim)">Please ask your teacher to generate a fresh classroom QR code.</span></p>
                 `;
               }
               return;

@@ -51,7 +51,7 @@ async function startQrAttendanceSession(){
     teacherLng: teacherLng,
     geoRadius: 10,
     createdAt: Date.now(),
-    expiresAt: Date.now() + (5 * 60 * 1000)
+    expiresAt: Date.now() + (12 * 60 * 1000)
   };
 
   if(firebaseDb){
