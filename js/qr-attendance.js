@@ -23,16 +23,33 @@ async function startQrAttendanceSession(){
   let teacherLat = null;
   let teacherLng = null;
 
-  // Pin-Point True Hardware Satellite GPS Engine for Teacher
+  // Pin-Point True Hardware Satellite GPS Engine for Teacher (with Fast Fallback)
   if(navigator.geolocation){
     try {
       const pos = await new Promise((resolve) => {
-        const timer = setTimeout(() => resolve(null), 4000);
+        let resolved = false;
         navigator.geolocation.getCurrentPosition(
-          (p) => { clearTimeout(timer); resolve(p); },
-          (err) => { clearTimeout(timer); resolve(null); },
-          { enableHighAccuracy: true, timeout: 3500, maximumAge: 0 }
+          (p) => { if(!resolved){ resolved = true; resolve(p); } },
+          () => {
+            navigator.geolocation.getCurrentPosition(
+              (p2) => { if(!resolved){ resolved = true; resolve(p2); } },
+              () => { if(!resolved){ resolved = true; resolve(null); } },
+              { enableHighAccuracy: false, timeout: 3000, maximumAge: 60000 }
+            );
+          },
+          { enableHighAccuracy: true, timeout: 3500, maximumAge: 15000 }
         );
+
+        setTimeout(() => {
+          if(!resolved){
+            resolved = true;
+            navigator.geolocation.getCurrentPosition(
+              (p3) => resolve(p3),
+              () => resolve(null),
+              { enableHighAccuracy: false, timeout: 2500, maximumAge: 120000 }
+            );
+          }
+        }, 4000);
       });
       if(pos && pos.coords){
         teacherLat = pos.coords.latitude;
@@ -308,6 +325,10 @@ async function finishQrSessionAndSave(){
   g.students.forEach(s => {
     if(qrMarkedStudentIds.has(s.id)) sess.records[s.id] = true;
   });
+
+  if(firebaseDb && activeQrSessionId){
+    firebaseDb.collection('attendo_qr_sessions').doc(activeQrSessionId).set({ isClosed: true }, { merge: true }).catch(e=>{});
+  }
 
   await persist();
   closeQrModal();

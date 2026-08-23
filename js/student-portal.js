@@ -1,6 +1,6 @@
 /* ============================================================
    STUDENT PUBLIC MOBILE PORTAL (ZERO-LOGIN ATTENDANCE ROUTER)
-   WITH UNIVERSAL DUAL-MODE CLASSROOM GEOFENCE ENGINE
+   UNIVERSAL CLOCK-SKEW PROOF CLASSROOM GEOFENCE & QR ENGINE
 ============================================================ */
 let publicPortalData = null;
 let prefetchedStudentCoords = null;
@@ -77,12 +77,47 @@ async function checkStudentPortalParams(){
   return false;
 }
 
-async function waitForFirebaseDb(maxWaitMs = 800){
+async function waitForFirebaseDb(maxWaitMs = 2500){
   const start = Date.now();
   while(!firebaseDb && (Date.now() - start) < maxWaitMs){
-    await new Promise(r => setTimeout(r, 40));
+    await new Promise(r => setTimeout(r, 50));
   }
   return firebaseDb;
+}
+
+async function renderStudentPortalUI(targetGroup, sessionId, email, gid, tlat, tlng, userAppData){
+  publicPortalData = { sessionId, email, gid, tlat, tlng, userAppData, targetGroup };
+  const instEl = document.getElementById('portalInstitutionName');
+  const classEl = document.getElementById('portalClassDetails');
+  const subjDateEl = document.getElementById('portalSubjectDate');
+  const select = document.getElementById('portalStudentSelect');
+  const statusEl = document.getElementById('portalStatusMsg') || document.getElementById('portalStatusMessage');
+  const btn = document.getElementById('portalSubmitBtn');
+
+  const instName = portalGroupInstitution(targetGroup);
+  const classLbl = portalGroupLabel(targetGroup);
+  const todayStr = new Date().toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' });
+
+  if(instEl) instEl.textContent = instName;
+  if(classEl) classEl.textContent = classLbl;
+  if(subjDateEl) subjDateEl.textContent = `Subject: ${targetGroup.subject || 'Class'} • Date: ${todayStr}`;
+
+  const sortedStudents = (targetGroup.students || []).slice().sort((a,b)=>a.rollNo.localeCompare(b.rollNo,undefined,{numeric:true}));
+  if(select && sortedStudents.length){
+    select.style.display = 'block';
+    if(btn) btn.style.display = 'block';
+    if(statusEl) statusEl.style.display = 'none';
+
+    select.innerHTML = '<option value="">-- Select Your Roll No / Name --</option>';
+    sortedStudents.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.id;
+      opt.textContent = `${s.rollNo} — ${s.name}`;
+      select.appendChild(opt);
+    });
+
+    select.onchange = () => prefetchStudentLocation();
+  }
 }
 
 async function openStudentPublicPortal(sessionId, email, gid){
@@ -113,118 +148,7 @@ async function openStudentPublicPortal(sessionId, email, gid){
 
     if(email) email = decodeURIComponent(email).trim().toLowerCase();
 
-    // 1. Instant Local Roster Lookup (0ms Render Speed)
-    let raw = null;
-    try {
-      raw = window.localStorage.getItem('attendo_fast_roster_' + email);
-    } catch(e) {}
-
-    if(!raw){
-      try { raw = await storageGet('data:' + email); } catch(e) {}
-    }
-
-    if(!raw && firebaseDb){
-      try {
-        const docKey = typeof sanitizeKey === 'function' ? sanitizeKey('data:' + email) : ('data_' + email.replace(/[^a-zA-Z0-9_]/g, '_'));
-        const docRef = firebaseDb.collection('attendo_storage').doc(docKey);
-        const doc = await docRef.get();
-        if(doc.exists && doc.data() && doc.data().value){
-          raw = doc.data().value;
-          try { window.localStorage.setItem('attendo_fast_roster_' + email, raw); } catch(e){}
-        }
-      } catch(e) {}
-    }
-
-    let userAppData = null;
-    let targetGroup = null;
-
-    if(raw){
-      try {
-        userAppData = JSON.parse(raw);
-        targetGroup = (userAppData.groups || []).find(g => g.id === gid) || (userAppData.groups && userAppData.groups.length ? userAppData.groups[0] : null);
-      } catch(e){}
-    }
-
-    if(targetGroup){
-      publicPortalData = { sessionId, email, gid, tlat, tlng, userAppData, targetGroup };
-      const instName = portalGroupInstitution(targetGroup);
-      const classLbl = portalGroupLabel(targetGroup);
-      const todayStr = new Date().toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' });
-
-      if(instEl) instEl.textContent = instName;
-      if(classEl) classEl.textContent = classLbl;
-      if(subjDateEl) subjDateEl.textContent = `Subject: ${targetGroup.subject || 'Class'} • Date: ${todayStr}`;
-
-      const sortedStudents = (targetGroup.students || []).slice().sort((a,b)=>a.rollNo.localeCompare(b.rollNo,undefined,{numeric:true}));
-      if(select && sortedStudents.length){
-        select.style.display = 'block';
-        if(btn) btn.style.display = 'block';
-        if(statusEl) statusEl.style.display = 'none';
-
-        select.innerHTML = '<option value="">-- Select Your Roll No / Name --</option>';
-        sortedStudents.forEach(s => {
-          const opt = document.createElement('option');
-          opt.value = s.id;
-          opt.textContent = `${s.rollNo} — ${s.name}`;
-          select.appendChild(opt);
-        });
-
-        select.onchange = () => prefetchStudentLocation();
-      }
-    } else {
-      if(subjDateEl) subjDateEl.textContent = 'Syncing session...';
-      if(select) select.innerHTML = '<option value="">Loading students...</option>';
-    }
-
-    // 2. Parallel Background Firestore Expiry & Metadata Sync
-    waitForFirebaseDb(800).then(async (db) => {
-      if(db && sessionId){
-        try {
-          const qrDoc = await db.collection('attendo_qr_sessions').doc(sessionId).get();
-          if(qrDoc.exists && qrDoc.data()){
-            const sessionData = qrDoc.data();
-            if(!email && sessionData.email) email = sessionData.email.trim().toLowerCase();
-            if(!gid && sessionData.gid) gid = sessionData.gid;
-            if(isNaN(tlat) && sessionData.teacherLat) tlat = parseFloat(sessionData.teacherLat);
-            if(isNaN(tlng) && sessionData.teacherLng) tlng = parseFloat(sessionData.teacherLng);
-
-            if(publicPortalData){
-              publicPortalData.tlat = tlat;
-              publicPortalData.tlng = tlng;
-            }
-
-            // Expiry Check (Clock-Skew Tolerant 12-Minute Window for Cross-Phone Sync)
-            const now = Date.now();
-            const createdAt = sessionData.createdAt || 0;
-            const maxSessionAge = 12 * 60 * 1000; // 12 minutes tolerance
-            
-            if(createdAt > 0 && (now - createdAt) > maxSessionAge){
-              if(instEl) instEl.textContent = 'Session Expired';
-              if(subjDateEl) subjDateEl.textContent = '🚫 QR Session Expired! Please ask your teacher for a fresh QR code.';
-              if(select) select.style.display = 'none';
-              if(btn) btn.style.display = 'none';
-              if(statusEl){
-                statusEl.style.display = 'block';
-                statusEl.style.background = 'rgba(239,68,68,0.15)';
-                statusEl.style.color = '#ef4444';
-                statusEl.style.border = '1px solid rgba(239,68,68,0.3)';
-                statusEl.style.padding = '18px';
-                statusEl.style.borderRadius = '12px';
-                statusEl.style.textAlign = 'center';
-                statusEl.innerHTML = `
-                  <div style="font-size:36px;margin-bottom:6px">🚫</div>
-                  <h3 style="margin:0 0 6px 0;font-size:16px;color:#ef4444">QR Code Session Expired!</h3>
-                  <p style="margin:0;font-size:13px;line-height:1.5">This QR code has expired.<br><span style="font-size:12px;color:var(--text-dim)">Please ask your teacher to generate a fresh classroom QR code.</span></p>
-                `;
-              }
-              return;
-            }
-          }
-        } catch(e){}
-      }
-    });
-
-    // 3. Single Device Lock Check
+    // 1. Single Device Duplicate Submission Lock Check
     const alreadyMarked = localStorage.getItem('attendo_marked_' + sessionId);
     if(alreadyMarked){
       if(subjDateEl) subjDateEl.textContent = `Attendance Already Registered`;
@@ -245,6 +169,89 @@ async function openStudentPublicPortal(sessionId, email, gid){
         `;
       }
       return;
+    }
+
+    // 2. Fast Local Storage Roster Lookup
+    let raw = null;
+    try {
+      raw = window.localStorage.getItem('attendo_fast_roster_' + email);
+    } catch(e) {}
+
+    let userAppData = null;
+    let targetGroup = null;
+
+    if(raw){
+      try {
+        userAppData = JSON.parse(raw);
+        targetGroup = (userAppData.groups || []).find(g => g.id === gid) || (userAppData.groups && userAppData.groups.length ? userAppData.groups[0] : null);
+      } catch(e){}
+    }
+
+    if(targetGroup){
+      renderStudentPortalUI(targetGroup, sessionId, email, gid, tlat, tlng, userAppData);
+    } else {
+      if(subjDateEl) subjDateEl.textContent = 'Syncing session & student list...';
+      if(select) select.innerHTML = '<option value="">Loading students...</option>';
+    }
+
+    // 3. Robust Cloud Roster & Session State Sync (Cross-Phone Fail-Proof)
+    const db = await waitForFirebaseDb(2500);
+    if(db && sessionId){
+      try {
+        // Fetch session metadata first
+        const qrDoc = await db.collection('attendo_qr_sessions').doc(sessionId).get();
+        if(qrDoc.exists && qrDoc.data()){
+          const sessionData = qrDoc.data();
+          if(!email && sessionData.email) email = sessionData.email.trim().toLowerCase();
+          if(!gid && sessionData.gid) gid = sessionData.gid;
+          if(isNaN(tlat) && sessionData.teacherLat) tlat = parseFloat(sessionData.teacherLat);
+          if(isNaN(tlng) && sessionData.teacherLng) tlng = parseFloat(sessionData.teacherLng);
+
+          // Check if session was manually closed by teacher
+          if(sessionData.isClosed === true){
+            if(instEl) instEl.textContent = 'Session Closed';
+            if(subjDateEl) subjDateEl.textContent = '🚫 Attendance Session Closed by Teacher!';
+            if(select) select.style.display = 'none';
+            if(btn) btn.style.display = 'none';
+            if(statusEl){
+              statusEl.style.display = 'block';
+              statusEl.style.background = 'rgba(239,68,68,0.15)';
+              statusEl.style.color = '#ef4444';
+              statusEl.style.border = '1px solid rgba(239,68,68,0.3)';
+              statusEl.style.padding = '18px';
+              statusEl.style.borderRadius = '12px';
+              statusEl.style.textAlign = 'center';
+              statusEl.innerHTML = `
+                <div style="font-size:36px;margin-bottom:6px">🚫</div>
+                <h3 style="margin:0 0 6px 0;font-size:16px;color:#ef4444">Attendance Session Closed</h3>
+                <p style="margin:0;font-size:13px;line-height:1.5">Your teacher has finished this attendance session.<br><span style="font-size:12px;color:var(--text-dim)">New submissions are now closed.</span></p>
+              `;
+            }
+            return;
+          }
+        }
+
+        // Fetch target group roster from Cloud Firestore if not found locally
+        if(!targetGroup && email){
+          const docKey = typeof sanitizeKey === 'function' ? sanitizeKey('data:' + email) : ('data_' + email.replace(/[^a-zA-Z0-9_]/g, '_'));
+          const docRef = db.collection('attendo_storage').doc(docKey);
+          const doc = await docRef.get();
+          if(doc.exists && doc.data() && doc.data().value){
+            const cloudRaw = doc.data().value;
+            try { window.localStorage.setItem('attendo_fast_roster_' + email, cloudRaw); } catch(e){}
+            userAppData = JSON.parse(cloudRaw);
+            targetGroup = (userAppData.groups || []).find(g => g.id === gid) || (userAppData.groups && userAppData.groups.length ? userAppData.groups[0] : null);
+            if(targetGroup){
+              renderStudentPortalUI(targetGroup, sessionId, email, gid, tlat, tlng, userAppData);
+            }
+          }
+        } else if(targetGroup && publicPortalData){
+          publicPortalData.tlat = tlat;
+          publicPortalData.tlng = tlng;
+        }
+      } catch(e){
+        console.error('Cloud sync error in student portal', e);
+      }
     }
 
   } catch(err) {
@@ -281,14 +288,13 @@ async function submitPublicStudentAttendance(){
     btn.textContent = '📍 Verifying Attendance...';
   }
 
-  // Fast Double Check Session Expiry
+  // Fast Check If Session Was Closed by Teacher
   if(firebaseDb && publicPortalData.sessionId){
     try {
       const qrDoc = await firebaseDb.collection('attendo_qr_sessions').doc(publicPortalData.sessionId).get();
       if(qrDoc.exists && qrDoc.data()){
         const d = qrDoc.data();
-        const expiresAt = d.expiresAt || (d.createdAt ? d.createdAt + 300000 : 0);
-        if(expiresAt && Date.now() > expiresAt){
+        if(d.isClosed === true){
           if(select) select.style.display = 'none';
           if(btn) btn.style.display = 'none';
           if(statusEl){
@@ -301,8 +307,8 @@ async function submitPublicStudentAttendance(){
             statusEl.style.textAlign = 'center';
             statusEl.innerHTML = `
               <div style="font-size:36px;margin-bottom:6px">🚫</div>
-              <h3 style="margin:0 0 6px 0;font-size:16px;color:#ef4444">QR Code Session Expired!</h3>
-              <p style="margin:0;font-size:13px;line-height:1.5">This 5-minute QR code has expired.<br><span style="font-size:12px;color:var(--text-dim)">Please ask your teacher to generate a fresh classroom QR code.</span></p>
+              <h3 style="margin:0 0 6px 0;font-size:16px;color:#ef4444">Attendance Session Closed</h3>
+              <p style="margin:0;font-size:13px;line-height:1.5">Your teacher has finished this attendance session.<br><span style="font-size:12px;color:var(--text-dim)">New submissions are closed.</span></p>
             `;
           }
           return;
@@ -374,10 +380,10 @@ async function submitPublicStudentAttendance(){
     } catch(e){}
   }
 
-  // Distance validation IF teacher location is present
+  // Strict 10-Meter Geofence Distance Validation
   if(!isNaN(tlat) && !isNaN(tlng) && sLat !== null && sLng !== null){
     const distMeters = calculateHaversineDistanceMeters(tlat, tlng, sLat, sLng);
-    if(distMeters > 35){
+    if(distMeters > 10){
       prefetchedStudentCoords = null; // Clear cache on far away detection
       if(btn){
         btn.disabled = false;
@@ -393,12 +399,12 @@ async function submitPublicStudentAttendance(){
         statusEl.innerHTML = `
           <div style="font-size:36px;margin-bottom:6px">🚫</div>
           <h3 style="margin:0 0 6px 0;font-size:16px;color:#ef4444">Sorry, You are Far Away!</h3>
-          <p style="margin:0;font-size:13px;line-height:1.5">You are currently <b>${distMeters} meters</b> away from the teacher.<br><span style="font-size:12px;color:var(--text-dim)">Please move closer to the classroom and tap Mark Me Present again.</span></p>
+          <p style="margin:0;font-size:13px;line-height:1.5">You are currently <b>${distMeters} meters</b> away from the teacher.<br><span style="font-size:12px;color:var(--text-dim)">Strict 10-meter geofenced attendance requires you to be near the teacher. Please move closer and tap Mark Me Present again.</span></p>
         `;
       }
       return;
     } else {
-      geoNote = `📍 Verified (Within Classroom Radius • ${distMeters}m)`;
+      geoNote = `📍 Verified (Within 10m Classroom Radius • ${distMeters}m)`;
     }
   }
 
