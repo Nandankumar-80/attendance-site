@@ -1,6 +1,6 @@
 /* ============================================================
    STUDENT PUBLIC MOBILE PORTAL (ZERO-LOGIN ATTENDANCE ROUTER)
-   WITH 100% FAIL-SAFE DUAL-MODE GEOLOCATION ENGINE
+   WITH UNIVERSAL DUAL-MODE CLASSROOM GEOFENCE ENGINE
 ============================================================ */
 let publicPortalData = null;
 let prefetchedStudentCoords = null;
@@ -53,10 +53,10 @@ function prefetchStudentLocation(){
               }
             },
             () => {},
-            { enableHighAccuracy: false, timeout: 3000, maximumAge: 60000 }
+            { enableHighAccuracy: false, timeout: 4000, maximumAge: 120000 }
           );
         },
-        { enableHighAccuracy: true, timeout: 3500, maximumAge: 15000 }
+        { enableHighAccuracy: true, timeout: 4000, maximumAge: 30000 }
       );
     } catch(e){}
   }
@@ -276,7 +276,7 @@ async function submitPublicStudentAttendance(){
   if(statusEl) statusEl.style.display = 'none';
   if(btn){
     btn.disabled = true;
-    btn.textContent = '📍 Verifying Distance...';
+    btn.textContent = '📍 Verifying Attendance...';
   }
 
   // Fast Double Check Session Expiry
@@ -309,11 +309,11 @@ async function submitPublicStudentAttendance(){
     } catch(e){}
   }
 
-  // Mandatory Strict Geofence Check
+  // Geofence Validation Setup
   const params = new URLSearchParams(window.location.search);
   let tlat = parseFloat(params.get('tlat') || (publicPortalData && publicPortalData.tlat));
   let tlng = parseFloat(params.get('tlng') || (publicPortalData && publicPortalData.tlng));
-  let geoNote = '📍 Verified (Within Classroom Radius)';
+  let geoNote = '📍 Verified (Classroom QR Scanned)';
 
   // Cloud fallback for teacher location if missing in URL
   if((isNaN(tlat) || isNaN(tlng)) && firebaseDb && publicPortalData && publicPortalData.sessionId){
@@ -327,27 +327,10 @@ async function submitPublicStudentAttendance(){
     } catch(e){}
   }
 
-  if(isNaN(tlat) || isNaN(tlng)){
-    if(btn){
-      btn.disabled = false;
-      btn.textContent = '✅ Mark Me Present';
-    }
-    if(statusEl){
-      statusEl.style.display = 'block';
-      statusEl.style.background = 'rgba(248,113,113,0.15)';
-      statusEl.style.color = 'var(--red)';
-      statusEl.style.border = '1px solid rgba(248,113,113,0.3)';
-      statusEl.style.padding = '14px';
-      statusEl.style.borderRadius = '10px';
-      statusEl.innerHTML = '📍 <b>Teacher GPS Location Not Set!</b><br>Teacher location was not captured for this session. Please ask teacher to turn on GPS and generate a fresh QR code.';
-    }
-    return;
-  }
-
+  // Obtain Student Coords smoothly
   let sLat = null, sLng = null;
 
-  // Use pre-fetched location if available (< 20 seconds old)
-  if(prefetchedStudentCoords && (Date.now() - prefetchedAt) < 20000){
+  if(prefetchedStudentCoords && (Date.now() - prefetchedAt) < 30000){
     sLat = prefetchedStudentCoords.latitude;
     sLng = prefetchedStudentCoords.longitude;
   } else {
@@ -356,31 +339,28 @@ async function submitPublicStudentAttendance(){
         if(!navigator.geolocation) return resolve(null);
         let resolved = false;
 
-        // Attempt 1: High Accuracy GPS (3.5s timeout)
         navigator.geolocation.getCurrentPosition(
           (p) => { if(!resolved){ resolved = true; resolve(p); } },
           () => {
-            // Attempt 2: Standard Location Fallback
             navigator.geolocation.getCurrentPosition(
               (p2) => { if(!resolved){ resolved = true; resolve(p2); } },
               () => { if(!resolved){ resolved = true; resolve(null); } },
-              { enableHighAccuracy: false, timeout: 3000, maximumAge: 60000 }
+              { enableHighAccuracy: false, timeout: 3500, maximumAge: 120000 }
             );
           },
-          { enableHighAccuracy: true, timeout: 3500, maximumAge: 15000 }
+          { enableHighAccuracy: true, timeout: 3000, maximumAge: 30000 }
         );
 
-        // Safety timer: Fallback to standard location
         setTimeout(() => {
           if(!resolved){
             resolved = true;
             navigator.geolocation.getCurrentPosition(
               (p3) => resolve(p3),
               () => resolve(null),
-              { enableHighAccuracy: false, timeout: 2000, maximumAge: 120000 }
+              { enableHighAccuracy: false, timeout: 2500, maximumAge: 300000 }
             );
           }
-        }, 4000);
+        }, 3500);
       });
 
       if(pos && pos.coords){
@@ -392,45 +372,32 @@ async function submitPublicStudentAttendance(){
     } catch(e){}
   }
 
-  if(sLat === null || sLng === null){
-    prefetchedStudentCoords = null;
-    if(btn){
-      btn.disabled = false;
-      btn.textContent = '✅ Mark Me Present';
+  // Distance validation IF teacher location is present
+  if(!isNaN(tlat) && !isNaN(tlng) && sLat !== null && sLng !== null){
+    const distMeters = calculateHaversineDistanceMeters(tlat, tlng, sLat, sLng);
+    if(distMeters > 35){
+      prefetchedStudentCoords = null; // Clear cache on far away detection
+      if(btn){
+        btn.disabled = false;
+        btn.textContent = '✅ Mark Me Present';
+      }
+      if(statusEl){
+        statusEl.style.display = 'block';
+        statusEl.style.background = 'rgba(248,113,113,0.15)';
+        statusEl.style.color = '#ef4444';
+        statusEl.style.border = '1px solid rgba(248,113,113,0.3)';
+        statusEl.style.padding = '14px';
+        statusEl.style.borderRadius = '10px';
+        statusEl.innerHTML = `
+          <div style="font-size:36px;margin-bottom:6px">🚫</div>
+          <h3 style="margin:0 0 6px 0;font-size:16px;color:#ef4444">Sorry, You are Far Away!</h3>
+          <p style="margin:0;font-size:13px;line-height:1.5">You are currently <b>${distMeters} meters</b> away from the teacher.<br><span style="font-size:12px;color:var(--text-dim)">Please move closer to the classroom and tap Mark Me Present again.</span></p>
+        `;
+      }
+      return;
+    } else {
+      geoNote = `📍 Verified (Within Classroom Radius • ${distMeters}m)`;
     }
-    if(statusEl){
-      statusEl.style.display = 'block';
-      statusEl.style.background = 'rgba(248,113,113,0.15)';
-      statusEl.style.color = 'var(--red)';
-      statusEl.style.border = '1px solid rgba(248,113,113,0.3)';
-      statusEl.style.padding = '14px';
-      statusEl.style.borderRadius = '10px';
-      statusEl.innerHTML = '📍 <b>GPS Location Access Required!</b><br>Geofenced attendance requires location access on your phone. Please turn on Location/GPS, allow browser permission, and try again.';
-    }
-    return;
-  }
-
-  const distMeters = calculateHaversineDistanceMeters(tlat, tlng, sLat, sLng);
-  if(distMeters > 15){
-    prefetchedStudentCoords = null; // Clear cache so retry calculates fresh position
-    if(btn){
-      btn.disabled = false;
-      btn.textContent = '✅ Mark Me Present';
-    }
-    if(statusEl){
-      statusEl.style.display = 'block';
-      statusEl.style.background = 'rgba(248,113,113,0.15)';
-      statusEl.style.color = '#ef4444';
-      statusEl.style.border = '1px solid rgba(248,113,113,0.3)';
-      statusEl.style.padding = '14px';
-      statusEl.style.borderRadius = '10px';
-      statusEl.innerHTML = `
-        <div style="font-size:36px;margin-bottom:6px">🚫</div>
-        <h3 style="margin:0 0 6px 0;font-size:16px;color:#ef4444">Sorry, You are Far Away!</h3>
-        <p style="margin:0;font-size:13px;line-height:1.5">You are currently <b>${distMeters} meters</b> away from the teacher.<br><span style="font-size:12px;color:var(--text-dim)">Please walk closer to the classroom and tap Mark Me Present again.</span></p>
-      `;
-    }
-    return;
   }
 
   if(btn){
