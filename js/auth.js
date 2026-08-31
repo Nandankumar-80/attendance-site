@@ -214,14 +214,14 @@ function openOtpModal(){
         <div style="font-size:13px;color:var(--cyan);font-weight:700;margin-bottom:4px">📩 Security OTP Dispatched</div>
         <div style="font-size:12px;color:var(--text);line-height:1.5">
           A 6-digit verification code has been sent directly to <b>${pendingSignupUser.email}</b>.<br>
-          <span style="font-size:11px;color:var(--text-dim);display:block;margin-top:4px">(Please open the Gmail Inbox for <b>${pendingSignupUser.email}</b>, copy the code, and enter it below to create the account)</span>
+          <span style="font-size:11px;color:var(--text-dim);display:block;margin-top:4px">(Please open the Gmail Inbox for <b>${pendingSignupUser.email}</b>, copy the 6-digit code, and enter it below to create the account)</span>
         </div>
       </div>
     `;
   }
 
   sendRealEmailOtp(pendingSignupUser.email, pendingSignupUser.name, pendingSignupUser.otp);
-  toast(`📩 Verification code sent to ${pendingSignupUser.email}`);
+  toast(`📩 Verification code dispatched to ${pendingSignupUser.email}`);
   startOtpTimer(3 * 60);
 }
 
