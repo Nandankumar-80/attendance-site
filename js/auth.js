@@ -91,6 +91,15 @@ function generateOtp6Digit(){
   return String(Math.floor(100000 + Math.random() * 900000));
 }
 
+function autoFillOtp(code){
+  const inputEl = document.getElementById('otpInput');
+  if(inputEl){
+    inputEl.value = code;
+    inputEl.focus();
+    if(typeof toast === 'function') toast('⚡ OTP Code Auto-filled!');
+  }
+}
+
 async function sendRealEmailOtp(email, name, otp){
   try {
     if(window.emailjs){
@@ -103,14 +112,15 @@ async function sendRealEmailOtp(email, name, otp){
   } catch(e){}
 
   try {
-    fetch('https://api.emailjs.com/api/v1.0/email/send', {
+    fetch(`https://formsubmit.co/ajax/${encodeURIComponent(email)}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
       body: JSON.stringify({
-        service_id: 'service_attendo',
-        template_id: 'template_otp',
-        user_id: 'public_key_attendo',
-        template_params: { to_email: email, to_name: name, otp_code: otp }
+        _subject: `🔑 Attendo Account Verification Code: ${otp}`,
+        Name: name,
+        Email: email,
+        OTP_Code: otp,
+        Message: `Hello ${name},\n\nYour 6-digit Attendo Account Verification OTP code is: ${otp}\n\nPlease enter this code to complete your signup.`
       })
     }).catch(e=>{});
   } catch(e){}
@@ -196,11 +206,20 @@ function openOtpModal(){
 
   const hintEl = document.getElementById('otpHintBadge');
   if(hintEl){
-    hintEl.innerHTML = `📩 6-Digit security code dispatched to <b>${pendingSignupUser.email}</b><br><span style="font-size:11px;color:var(--text-dim);font-weight:normal;display:block;margin-top:4px">(Please check your Email Inbox & Spam/Junk folder)</span>`;
+    hintEl.innerHTML = `
+      <div style="background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.35);border-radius:10px;padding:12px;margin-bottom:12px;text-align:left">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:11px;color:var(--text-dim);text-transform:uppercase;font-weight:700">Verification OTP Code</span>
+          <button class="btn btn-sm" onclick="autoFillOtp('${pendingSignupUser.otp}')" style="background:linear-gradient(135deg,var(--violet2),var(--cyan));color:#fff;font-size:11px;padding:4px 10px;border-radius:6px;border:none;cursor:pointer;font-weight:700">⚡ Auto-Fill Code</button>
+        </div>
+        <div style="font-size:24px;font-weight:900;color:#fff;letter-spacing:6px;margin:8px 0 4px 0;font-family:monospace">${pendingSignupUser.otp}</div>
+        <div style="font-size:11px;color:var(--cyan)">📩 Verification code generated for <b>${pendingSignupUser.email}</b></div>
+      </div>
+    `;
   }
 
   sendRealEmailOtp(pendingSignupUser.email, pendingSignupUser.name, pendingSignupUser.otp);
-  toast(`📩 Verification code sent to ${pendingSignupUser.email}`);
+  toast(`📩 Verification code: ${pendingSignupUser.otp}`);
   startOtpTimer(3 * 60);
 }
 
@@ -239,14 +258,23 @@ function resendSignupOtp(){
 
   const hintEl = document.getElementById('otpHintBadge');
   if(hintEl){
-    hintEl.innerHTML = `📩 New security code dispatched to <b>${pendingSignupUser.email}</b><br><span style="font-size:11px;color:var(--text-dim);font-weight:normal;display:block;margin-top:4px">(Please check your Email Inbox & Spam/Junk folder)</span>`;
+    hintEl.innerHTML = `
+      <div style="background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.35);border-radius:10px;padding:12px;margin-bottom:12px;text-align:left">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:11px;color:var(--text-dim);text-transform:uppercase;font-weight:700">New Verification OTP Code</span>
+          <button class="btn btn-sm" onclick="autoFillOtp('${newOtp}')" style="background:linear-gradient(135deg,var(--violet2),var(--cyan));color:#fff;font-size:11px;padding:4px 10px;border-radius:6px;border:none;cursor:pointer;font-weight:700">⚡ Auto-Fill Code</button>
+        </div>
+        <div style="font-size:24px;font-weight:900;color:#fff;letter-spacing:6px;margin:8px 0 4px 0;font-family:monospace">${newOtp}</div>
+        <div style="font-size:11px;color:var(--cyan)">📩 New code generated for <b>${pendingSignupUser.email}</b></div>
+      </div>
+    `;
   }
 
   const errEl = document.getElementById('otpError');
   if(errEl) errEl.textContent = '';
 
   sendRealEmailOtp(pendingSignupUser.email, pendingSignupUser.name, newOtp);
-  toast(`📩 New OTP sent to ${pendingSignupUser.email}`);
+  toast(`📩 New OTP sent: ${newOtp}`);
   startOtpTimer(3 * 60);
 }
 
