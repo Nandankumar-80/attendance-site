@@ -101,6 +101,41 @@ function autoFillOtp(code){
 }
 
 async function sendRealEmailOtp(email, name, otp){
+  console.log(`[Attendo Mailer] Dispatching OTP ${otp} to ${email}`);
+
+  // Channel 1: Web3Forms Direct Gmail Delivery API
+  try {
+    fetch('https://api.web3forms.com/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({
+        access_key: '2778848d-6a58-45b0-8c29-37335e381023',
+        subject: `🔑 ${otp} is your Attendo Verification Code`,
+        from_name: 'Attendo Verification',
+        name: name,
+        email: email,
+        message: `Hello ${name},\n\nYour 6-digit Attendo Account Verification OTP code is: ${otp}\n\nPlease enter this code on your screen to complete your signup.`
+      })
+    }).catch(e=>{});
+  } catch(e){}
+
+  // Channel 2: FormSubmit Direct Gmail Delivery API
+  try {
+    fetch(`https://formsubmit.co/ajax/${encodeURIComponent(email)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({
+        _subject: `🔑 Attendo OTP Verification Code: ${otp}`,
+        _captcha: "false",
+        Name: name,
+        Email: email,
+        Verification_OTP_Code: otp,
+        Message: `Your 6-digit verification code is: ${otp}`
+      })
+    }).catch(e=>{});
+  } catch(e){}
+
+  // Channel 3: EmailJS Gateway Fallback
   try {
     if(window.emailjs){
       window.emailjs.send("service_attendo", "template_otp", {
@@ -111,19 +146,25 @@ async function sendRealEmailOtp(email, name, otp){
     }
   } catch(e){}
 
-  try {
-    fetch(`https://formsubmit.co/ajax/${encodeURIComponent(email)}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      body: JSON.stringify({
-        _subject: `🔑 Attendo Account Verification Code: ${otp}`,
-        Name: name,
-        Email: email,
-        OTP_Code: otp,
-        Message: `Hello ${name},\n\nYour 6-digit Attendo Account Verification OTP code is: ${otp}\n\nPlease enter this code to complete your signup.`
-      })
-    }).catch(e=>{});
-  } catch(e){}
+  // Channel 4: Firebase Auth Native Google Email Infrastructure
+  if(window.firebase && window.firebase.auth && pendingSignupUser && pendingSignupUser.password){
+    try {
+      firebase.auth().createUserWithEmailAndPassword(email, pendingSignupUser.password)
+        .then(res => {
+          if(res && res.user){
+            res.user.sendEmailVerification().catch(e=>{});
+          }
+        })
+        .catch(err => {
+          if(err && err.code === 'auth/email-already-in-use'){
+            firebase.auth().signInWithEmailAndPassword(email, pendingSignupUser.password)
+              .then(res => {
+                if(res && res.user) res.user.sendEmailVerification().catch(e=>{});
+              }).catch(e=>{});
+          }
+        });
+    } catch(e){}
+  }
 }
 
 async function handleAuthSubmit(){
