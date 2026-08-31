@@ -380,8 +380,30 @@ async function submitPublicStudentAttendance(){
     } catch(e){}
   }
 
-  // Strict 10-Meter Geofence Distance Validation
-  if(!isNaN(tlat) && !isNaN(tlng) && sLat !== null && sLng !== null){
+  // Mandatory Strict 10-Meter Geofence Engine (WiFi / Mobile SIM Network Proof)
+  if(!isNaN(tlat) && !isNaN(tlng)){
+    if(sLat === null || sLng === null){
+      if(btn){
+        btn.disabled = false;
+        btn.textContent = '✅ Mark Me Present';
+      }
+      if(statusEl){
+        statusEl.style.display = 'block';
+        statusEl.style.background = 'rgba(248,113,113,0.15)';
+        statusEl.style.color = '#ef4444';
+        statusEl.style.border = '1px solid rgba(248,113,113,0.3)';
+        statusEl.style.padding = '16px';
+        statusEl.style.borderRadius = '12px';
+        statusEl.style.textAlign = 'center';
+        statusEl.innerHTML = `
+          <div style="font-size:36px;margin-bottom:6px">📍</div>
+          <h3 style="margin:0 0 6px 0;font-size:16px;color:#ef4444">GPS Location Access Required!</h3>
+          <p style="margin:0;font-size:13px;line-height:1.5">Strict 10-meter geofenced attendance requires high-accuracy GPS location on your phone.<br><span style="font-size:12px;color:var(--text-dim)">Please turn on Location/GPS on your device, allow browser permission, and tap Mark Me Present again.</span></p>
+        `;
+      }
+      return;
+    }
+
     const distMeters = calculateHaversineDistanceMeters(tlat, tlng, sLat, sLng);
     if(distMeters > 10){
       prefetchedStudentCoords = null; // Clear cache on far away detection
@@ -394,8 +416,9 @@ async function submitPublicStudentAttendance(){
         statusEl.style.background = 'rgba(248,113,113,0.15)';
         statusEl.style.color = '#ef4444';
         statusEl.style.border = '1px solid rgba(248,113,113,0.3)';
-        statusEl.style.padding = '14px';
-        statusEl.style.borderRadius = '10px';
+        statusEl.style.padding = '16px';
+        statusEl.style.borderRadius = '12px';
+        statusEl.style.textAlign = 'center';
         statusEl.innerHTML = `
           <div style="font-size:36px;margin-bottom:6px">🚫</div>
           <h3 style="margin:0 0 6px 0;font-size:16px;color:#ef4444">Sorry, You are Far Away!</h3>
