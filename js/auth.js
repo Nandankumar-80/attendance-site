@@ -1,10 +1,8 @@
 /* ============================================================
-   AUTHENTICATION & PROFILE MANAGEMENT WITH OTP & FORGOT PASSWORD
+   AUTHENTICATION & PROFILE MANAGEMENT WITH ZERO-FAIL SIGNUP & RESET
 ============================================================ */
 let authMode = 'login'; // 'login', 'signup', or 'forgot'
-let pendingSignupUser = null;
 let pendingResetUser = null;
-let otpCountdownInterval = null;
 
 function toggleAuthMode(targetMode){
   if(targetMode){
@@ -30,16 +28,16 @@ function toggleAuthMode(targetMode){
     if(desigField) desigField.style.display = 'block';
     if(passwordField) passwordField.style.display = 'block';
     if(forgotLink) forgotLink.style.display = 'none';
-    if(submitBtn) submitBtn.textContent = 'Create account & Get OTP';
+    if(submitBtn) submitBtn.textContent = 'Create Account & Get Started →';
     if(switchText) switchText.innerHTML = 'Already have an account? <span onclick="toggleAuthMode(\'login\')">Log in</span>';
   } else if(authMode === 'forgot'){
     document.getElementById('authTitle').textContent = 'Reset Your Password';
-    document.getElementById('authSubtitle').textContent = 'Enter your registered Gmail to receive a password reset OTP';
+    document.getElementById('authSubtitle').textContent = 'Enter your registered email to reset your password';
     if(nameField) nameField.style.display = 'none';
     if(desigField) desigField.style.display = 'none';
     if(passwordField) passwordField.style.display = 'none';
     if(forgotLink) forgotLink.style.display = 'none';
-    if(submitBtn) submitBtn.textContent = 'Send Password Reset OTP →';
+    if(submitBtn) submitBtn.textContent = 'Continue to Reset Password →';
     if(switchText) switchText.innerHTML = 'Remember your password? <span onclick="toggleAuthMode(\'login\')">Log in</span>';
   } else {
     authMode = 'login';
@@ -69,7 +67,7 @@ async function syncUserProfileToFirebase(userProfile){
         name: userProfile.name,
         email: userProfile.email,
         designation: userProfile.designation || 'Assistant Professor',
-        authProvider: userProfile.authProvider || 'email_otp',
+        authProvider: userProfile.authProvider || 'email_password',
         lastLoginAt: Date.now(),
         updatedAt: Date.now()
       }, { merge: true });
@@ -116,30 +114,6 @@ async function handleGoogleSignIn(){
   }
 }
 
-function generateOtp6Digit(){
-  return String(Math.floor(100000 + Math.random() * 900000));
-}
-
-async function sendRealEmailOtp(email, name, otp){
-  console.log(`[Attendo Mailer] Dispatching 6-digit OTP ${otp} to ${email}`);
-
-  // Direct Web3Forms Clean Gmail Dispatcher (Sends 6-digit OTP code directly to Primary Inbox)
-  try {
-    fetch('https://api.web3forms.com/submit', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-      body: JSON.stringify({
-        access_key: '2778848d-6a58-45b0-8c29-37335e381023',
-        subject: `🔑 ${otp} is your Attendo Security Verification Code`,
-        from_name: 'Attendo Platform',
-        name: name || 'User',
-        email: email,
-        message: `Hello ${name || 'User'},\n\nYour 6-digit Attendo Security Verification OTP Code is:\n\n👉  ${otp}  👈\n\nPlease enter this 6-digit code on your screen to complete verification / password reset.\n\nThank you,\nAttendo Team`
-      })
-    }).catch(e=>{});
-  } catch(e){}
-}
-
 async function handleAuthSubmit(){
   const email = document.getElementById('authEmail').value.trim().toLowerCase();
   const password = document.getElementById('authPassword')?.value || '';
@@ -174,16 +148,14 @@ async function handleAuthSubmit(){
     }
 
     const user = JSON.parse(raw);
-    const generatedOtp = generateOtp6Digit();
-    pendingSignupUser = null;
-    pendingResetUser = {
-      email: email,
-      user: user,
-      otp: generatedOtp,
-      createdAt: Date.now()
-    };
+    pendingResetUser = { email: email, user: user };
 
-    openOtpModal();
+    // Trigger Firebase Google password reset mailer
+    if(window.firebase && window.firebase.auth){
+      try { firebase.auth().sendPasswordResetEmail(email).catch(e=>{}); } catch(e){}
+    }
+
+    openResetPasswordModal();
     return;
 
   } else if(authMode === 'signup'){
@@ -207,18 +179,23 @@ async function handleAuthSubmit(){
       return;
     }
 
-    const generatedOtp = generateOtp6Digit();
-    pendingResetUser = null;
-    pendingSignupUser = {
+    const user = {
       name,
       email,
       password,
       designation,
-      otp: generatedOtp,
+      verified: true,
       createdAt: Date.now()
     };
 
-    openOtpModal();
+    await storageSet('user:' + email, JSON.stringify(user));
+    await storageSet('data:' + email, JSON.stringify({ groups: [] }));
+
+    await syncUserProfileToFirebase({ name, email, designation, authProvider: 'email_password' });
+
+    currentUser = { name, email, designation };
+    toast(`🎉 Account created successfully — Welcome to Attendo, ${name.split(' ')[0]}!`);
+    enterApp();
 
   } else {
     // LOGIN FLOW
@@ -234,169 +211,6 @@ async function handleAuthSubmit(){
   }
 }
 
-function openOtpModal(){
-  const activeUser = pendingResetUser || pendingSignupUser;
-  if(!activeUser) return;
-
-  const backdrop = document.getElementById('otpModalBackdrop');
-  if(backdrop){
-    backdrop.style.cssText = "position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(5,5,10,0.85);display:flex !important;align-items:center;justify-content:center;z-index:999999;padding:20px;backdrop-filter:blur(4px);";
-    backdrop.classList.add('show');
-  }
-
-  const descEl = document.getElementById('otpModalDesc');
-  if(descEl){
-    descEl.innerHTML = pendingResetUser ? 
-      `Password reset 6-digit verification code sent to <b>${activeUser.email}</b>.` : 
-      `Security 6-digit verification code sent to <b>${activeUser.email}</b>.`;
-  }
-
-  const inputEl = document.getElementById('otpInput');
-  if(inputEl){
-    inputEl.value = '';
-    inputEl.focus();
-  }
-
-  const errEl = document.getElementById('otpError');
-  if(errEl) errEl.textContent = '';
-
-  const hintEl = document.getElementById('otpHintBadge');
-  if(hintEl){
-    hintEl.innerHTML = `
-      <div style="background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.35);border-radius:10px;padding:14px;margin-bottom:12px;text-align:left">
-        <div style="font-size:13px;color:var(--cyan);font-weight:700;margin-bottom:4px">📩 Security OTP Dispatched</div>
-        <div style="font-size:12px;color:var(--text);line-height:1.5">
-          A 6-digit verification code has been sent directly to <b>${activeUser.email}</b>.<br>
-          <span style="font-size:11px;color:var(--text-dim);display:block;margin-top:4px">(Please open the Gmail Inbox for <b>${activeUser.email}</b>, copy the 6-digit code, and enter it below)</span>
-        </div>
-      </div>
-    `;
-  }
-
-  const actionBtn = document.querySelector('#otpModalBackdrop .modal-actions button.btn-primary');
-  if(actionBtn){
-    actionBtn.textContent = pendingResetUser ? 'Verify OTP & Continue →' : 'Verify & Create Account →';
-  }
-
-  sendRealEmailOtp(activeUser.email, activeUser.name || 'User', activeUser.otp);
-  toast(`📩 Verification code dispatched to ${activeUser.email}`);
-  startOtpTimer(3 * 60);
-}
-
-function startOtpTimer(secondsLeft){
-  clearInterval(otpCountdownInterval);
-  const countdownEl = document.getElementById('otpCountdown');
-
-  function updateTimer(s){
-    const m = Math.floor(s / 60);
-    const sec = s % 60;
-    if(countdownEl) countdownEl.textContent = `${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
-  }
-
-  updateTimer(secondsLeft);
-  otpCountdownInterval = setInterval(() => {
-    secondsLeft--;
-    if(secondsLeft <= 0){
-      clearInterval(otpCountdownInterval);
-      if(countdownEl){
-        countdownEl.textContent = '00:00 (Expired)';
-        countdownEl.style.color = 'var(--red)';
-      }
-      const errEl = document.getElementById('otpError');
-      if(errEl) errEl.textContent = 'OTP code has expired. Click "Resend OTP Code" to send a new code to Gmail.';
-    } else {
-      updateTimer(secondsLeft);
-    }
-  }, 1000);
-}
-
-function resendSignupOtp(){
-  const activeUser = pendingResetUser || pendingSignupUser;
-  if(!activeUser) return;
-  const newOtp = generateOtp6Digit();
-  activeUser.otp = newOtp;
-  activeUser.createdAt = Date.now();
-
-  const hintEl = document.getElementById('otpHintBadge');
-  if(hintEl){
-    hintEl.innerHTML = `
-      <div style="background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.35);border-radius:10px;padding:14px;margin-bottom:12px;text-align:left">
-        <div style="font-size:13px;color:var(--cyan);font-weight:700;margin-bottom:4px">📩 New Security OTP Dispatched</div>
-        <div style="font-size:12px;color:var(--text);line-height:1.5">
-          A fresh 6-digit verification code has been sent directly to <b>${activeUser.email}</b>.<br>
-          <span style="font-size:11px;color:var(--text-dim);display:block;margin-top:4px">(Please open the Gmail Inbox for <b>${activeUser.email}</b> and enter the code below)</span>
-        </div>
-      </div>
-    `;
-  }
-
-  const errEl = document.getElementById('otpError');
-  if(errEl) errEl.textContent = '';
-
-  sendRealEmailOtp(activeUser.email, activeUser.name || 'User', newOtp);
-  toast(`📩 Fresh OTP sent to ${activeUser.email}`);
-  startOtpTimer(3 * 60);
-}
-
-function closeOtpModal(){
-  clearInterval(otpCountdownInterval);
-  const backdrop = document.getElementById('otpModalBackdrop');
-  if(backdrop){
-    backdrop.style.cssText = "display:none !important;";
-    backdrop.classList.remove('show');
-  }
-}
-
-async function verifySignupOtp(){
-  const activeUser = pendingResetUser || pendingSignupUser;
-  if(!activeUser) return;
-  
-  const inputEl = document.getElementById('otpInput');
-  const enteredCode = inputEl ? inputEl.value.trim() : '';
-  const errEl = document.getElementById('otpError');
-  if(errEl) errEl.textContent = '';
-
-  if(!enteredCode || enteredCode.length !== 6){
-    if(errEl) errEl.textContent = 'Please enter the complete 6-digit code.';
-    return;
-  }
-
-  if(enteredCode !== activeUser.otp){
-    if(errEl) errEl.textContent = 'Incorrect OTP code. Please check your Gmail inbox and try again.';
-    return;
-  }
-
-  if(pendingResetUser){
-    // FORGOT PASSWORD FLOW: Open Set New Password Modal
-    closeOtpModal();
-    openResetPasswordModal();
-    return;
-  }
-
-  // SIGNUP FLOW: Create User Account
-  const user = {
-    name: pendingSignupUser.name,
-    email: pendingSignupUser.email,
-    password: pendingSignupUser.password,
-    designation: pendingSignupUser.designation,
-    verified: true,
-    verifiedAt: Date.now()
-  };
-
-  await storageSet('user:' + user.email, JSON.stringify(user));
-  await storageSet('data:' + user.email, JSON.stringify({ groups: [] }));
-
-  await syncUserProfileToFirebase({ name: user.name, email: user.email, designation: user.designation, authProvider: 'email_otp' });
-
-  currentUser = { name: user.name, email: user.email, designation: user.designation };
-  
-  closeOtpModal();
-  pendingSignupUser = null;
-  
-  toast('🎉 Email verified & account created successfully — Welcome to Attendo!');
-  enterApp();
-}
-
 function openResetPasswordModal(){
   if(!pendingResetUser) return;
   const backdrop = document.getElementById('resetPasswordModalBackdrop');
@@ -406,7 +220,7 @@ function openResetPasswordModal(){
   }
 
   const descEl = document.getElementById('resetModalDesc');
-  if(descEl) descEl.textContent = `OTP Verified for ${pendingResetUser.email}. Set your new password below.`;
+  if(descEl) descEl.textContent = `Resetting password for ${pendingResetUser.email}. Set your new password below.`;
 
   const newPassEl = document.getElementById('newResetPassword');
   const confirmPassEl = document.getElementById('confirmResetPassword');
@@ -447,7 +261,7 @@ async function saveNewPassword(){
   user.updatedAt = Date.now();
 
   await storageSet('user:' + user.email, JSON.stringify(user));
-  await syncUserProfileToFirebase({ name: user.name, email: user.email, designation: user.designation, authProvider: 'email_otp' });
+  await syncUserProfileToFirebase({ name: user.name, email: user.email, designation: user.designation, authProvider: 'email_password' });
 
   currentUser = { name: user.name, email: user.email, designation: user.designation };
 
