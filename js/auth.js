@@ -234,7 +234,7 @@ function openOtpModal(){
   }
 
   const descEl = document.getElementById('otpModalDesc');
-  if(descEl) descEl.innerHTML = `Security 6-digit code dispatched for <b>${pendingSignupUser.email}</b>.`;
+  if(descEl) descEl.innerHTML = `Security 6-digit verification code sent to <b>${pendingSignupUser.email}</b>.`;
 
   const inputEl = document.getElementById('otpInput');
   if(inputEl){
@@ -248,19 +248,18 @@ function openOtpModal(){
   const hintEl = document.getElementById('otpHintBadge');
   if(hintEl){
     hintEl.innerHTML = `
-      <div style="background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.35);border-radius:10px;padding:12px;margin-bottom:12px;text-align:left">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <span style="font-size:11px;color:var(--text-dim);text-transform:uppercase;font-weight:700">Verification OTP Code</span>
-          <button class="btn btn-sm" onclick="autoFillOtp('${pendingSignupUser.otp}')" style="background:linear-gradient(135deg,var(--violet2),var(--cyan));color:#fff;font-size:11px;padding:4px 10px;border-radius:6px;border:none;cursor:pointer;font-weight:700">⚡ Auto-Fill Code</button>
+      <div style="background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.35);border-radius:10px;padding:14px;margin-bottom:12px;text-align:left">
+        <div style="font-size:13px;color:var(--cyan);font-weight:700;margin-bottom:4px">📩 Security OTP Dispatched</div>
+        <div style="font-size:12px;color:var(--text);line-height:1.5">
+          A 6-digit verification code has been sent directly to <b>${pendingSignupUser.email}</b>.<br>
+          <span style="font-size:11px;color:var(--text-dim);display:block;margin-top:4px">(Please open the Gmail Inbox for <b>${pendingSignupUser.email}</b>, copy the code, and enter it below to create the account)</span>
         </div>
-        <div style="font-size:24px;font-weight:900;color:#fff;letter-spacing:6px;margin:8px 0 4px 0;font-family:monospace">${pendingSignupUser.otp}</div>
-        <div style="font-size:11px;color:var(--cyan)">📩 Verification code generated for <b>${pendingSignupUser.email}</b></div>
       </div>
     `;
   }
 
   sendRealEmailOtp(pendingSignupUser.email, pendingSignupUser.name, pendingSignupUser.otp);
-  toast(`📩 Verification code: ${pendingSignupUser.otp}`);
+  toast(`📩 Verification code sent to ${pendingSignupUser.email}`);
   startOtpTimer(3 * 60);
 }
 
@@ -284,7 +283,7 @@ function startOtpTimer(secondsLeft){
         countdownEl.style.color = 'var(--red)';
       }
       const errEl = document.getElementById('otpError');
-      if(errEl) errEl.textContent = 'OTP code has expired. Click "Resend OTP Code" to get a new code.';
+      if(errEl) errEl.textContent = 'OTP code has expired. Click "Resend OTP Code" to send a new code to Gmail.';
     } else {
       updateTimer(secondsLeft);
     }
@@ -300,13 +299,12 @@ function resendSignupOtp(){
   const hintEl = document.getElementById('otpHintBadge');
   if(hintEl){
     hintEl.innerHTML = `
-      <div style="background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.35);border-radius:10px;padding:12px;margin-bottom:12px;text-align:left">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <span style="font-size:11px;color:var(--text-dim);text-transform:uppercase;font-weight:700">New Verification OTP Code</span>
-          <button class="btn btn-sm" onclick="autoFillOtp('${newOtp}')" style="background:linear-gradient(135deg,var(--violet2),var(--cyan));color:#fff;font-size:11px;padding:4px 10px;border-radius:6px;border:none;cursor:pointer;font-weight:700">⚡ Auto-Fill Code</button>
+      <div style="background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.35);border-radius:10px;padding:14px;margin-bottom:12px;text-align:left">
+        <div style="font-size:13px;color:var(--cyan);font-weight:700;margin-bottom:4px">📩 New Security OTP Dispatched</div>
+        <div style="font-size:12px;color:var(--text);line-height:1.5">
+          A fresh 6-digit verification code has been sent directly to <b>${pendingSignupUser.email}</b>.<br>
+          <span style="font-size:11px;color:var(--text-dim);display:block;margin-top:4px">(Please open the Gmail Inbox for <b>${pendingSignupUser.email}</b> and enter the code below)</span>
         </div>
-        <div style="font-size:24px;font-weight:900;color:#fff;letter-spacing:6px;margin:8px 0 4px 0;font-family:monospace">${newOtp}</div>
-        <div style="font-size:11px;color:var(--cyan)">📩 New code generated for <b>${pendingSignupUser.email}</b></div>
       </div>
     `;
   }
@@ -315,7 +313,7 @@ function resendSignupOtp(){
   if(errEl) errEl.textContent = '';
 
   sendRealEmailOtp(pendingSignupUser.email, pendingSignupUser.name, newOtp);
-  toast(`📩 New OTP sent: ${newOtp}`);
+  toast(`📩 Fresh OTP sent to ${pendingSignupUser.email}`);
   startOtpTimer(3 * 60);
 }
 
