@@ -1,27 +1,56 @@
 /* ============================================================
-   AUTHENTICATION & PROFILE MANAGEMENT WITH OTP VERIFICATION
+   AUTHENTICATION & PROFILE MANAGEMENT WITH OTP & FORGOT PASSWORD
 ============================================================ */
-let authMode = 'login'; // or 'signup'
+let authMode = 'login'; // 'login', 'signup', or 'forgot'
 let pendingSignupUser = null;
+let pendingResetUser = null;
 let otpCountdownInterval = null;
 
-function toggleAuthMode(){
-  authMode = authMode === 'login' ? 'signup' : 'login';
-  document.getElementById('authError').textContent = '';
+function toggleAuthMode(targetMode){
+  if(targetMode){
+    authMode = targetMode;
+  } else {
+    authMode = authMode === 'login' ? 'signup' : 'login';
+  }
+
+  const errEl = document.getElementById('authError');
+  if(errEl) errEl.textContent = '';
+
+  const nameField = document.getElementById('signupNameField');
+  const desigField = document.getElementById('signupDesignationField');
+  const passwordField = document.getElementById('authPasswordField') || document.getElementById('passwordField');
+  const forgotLink = document.getElementById('forgotPasswordLink');
+  const submitBtn = document.getElementById('authSubmitBtn');
+  const switchText = document.getElementById('authSwitchText');
+
   if(authMode === 'signup'){
     document.getElementById('authTitle').textContent = 'Create your account';
     document.getElementById('authSubtitle').textContent = 'Set up attendance for your classes';
-    document.getElementById('signupNameField').style.display = 'block';
-    if(document.getElementById('signupDesignationField')) document.getElementById('signupDesignationField').style.display = 'block';
-    document.getElementById('authSubmitBtn').textContent = 'Create account & Get OTP';
-    document.getElementById('authSwitchText').innerHTML = 'Already have an account? <span onclick="toggleAuthMode()">Log in</span>';
+    if(nameField) nameField.style.display = 'block';
+    if(desigField) desigField.style.display = 'block';
+    if(passwordField) passwordField.style.display = 'block';
+    if(forgotLink) forgotLink.style.display = 'none';
+    if(submitBtn) submitBtn.textContent = 'Create account & Get OTP';
+    if(switchText) switchText.innerHTML = 'Already have an account? <span onclick="toggleAuthMode(\'login\')">Log in</span>';
+  } else if(authMode === 'forgot'){
+    document.getElementById('authTitle').textContent = 'Reset Your Password';
+    document.getElementById('authSubtitle').textContent = 'Enter your registered Gmail to receive a password reset OTP';
+    if(nameField) nameField.style.display = 'none';
+    if(desigField) desigField.style.display = 'none';
+    if(passwordField) passwordField.style.display = 'none';
+    if(forgotLink) forgotLink.style.display = 'none';
+    if(submitBtn) submitBtn.textContent = 'Send Password Reset OTP →';
+    if(switchText) switchText.innerHTML = 'Remember your password? <span onclick="toggleAuthMode(\'login\')">Log in</span>';
   } else {
+    authMode = 'login';
     document.getElementById('authTitle').textContent = 'Welcome back';
     document.getElementById('authSubtitle').textContent = 'Log in to manage your classes';
-    document.getElementById('signupNameField').style.display = 'none';
-    if(document.getElementById('signupDesignationField')) document.getElementById('signupDesignationField').style.display = 'none';
-    document.getElementById('authSubmitBtn').textContent = 'Log in';
-    document.getElementById('authSwitchText').innerHTML = 'New here? <span onclick="toggleAuthMode()">Create an account</span>';
+    if(nameField) nameField.style.display = 'none';
+    if(desigField) desigField.style.display = 'none';
+    if(passwordField) passwordField.style.display = 'block';
+    if(forgotLink) forgotLink.style.display = 'block';
+    if(submitBtn) submitBtn.textContent = 'Log in';
+    if(switchText) switchText.innerHTML = 'New here? <span onclick="toggleAuthMode(\'signup\')">Create an account</span>';
   }
 }
 
@@ -91,39 +120,21 @@ function generateOtp6Digit(){
   return String(Math.floor(100000 + Math.random() * 900000));
 }
 
-function autoFillOtp(code){
-  const inputEl = document.getElementById('otpInput');
-  if(inputEl){
-    inputEl.value = code;
-    inputEl.focus();
-    if(typeof toast === 'function') toast('⚡ OTP Code Auto-filled!');
-  }
-}
-
 async function sendRealEmailOtp(email, name, otp){
   console.log(`[Attendo Mailer] Dispatching 6-digit OTP ${otp} to ${email}`);
 
-  // 1. Google Firebase Mailer Engine (Sends direct Google authentication email to target Gmail)
-  try {
-    fetch('https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=AIzaSyBbRirhv6dYBrnduUIhJ19aoO-YVsoENIw', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ requestType: 'PASSWORD_RESET', email: email })
-    }).catch(e=>{});
-  } catch(e){}
-
-  // 2. Direct Web3Forms Clean Mailer Engine
+  // Direct Web3Forms Clean Gmail Dispatcher (Sends 6-digit OTP code directly to Primary Inbox)
   try {
     fetch('https://api.web3forms.com/submit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
       body: JSON.stringify({
         access_key: '2778848d-6a58-45b0-8c29-37335e381023',
-        subject: `🔑 ${otp} is your Attendo Verification Code`,
+        subject: `🔑 ${otp} is your Attendo Security Verification Code`,
         from_name: 'Attendo Platform',
-        name: name,
+        name: name || 'User',
         email: email,
-        message: `Hello ${name},\n\nYour 6-digit Attendo Account Verification OTP code is:\n\n👉  ${otp}  👈\n\nPlease enter this 6-digit code on the signup screen to verify your email address.\n\nThank you,\nAttendo Team`
+        message: `Hello ${name || 'User'},\n\nYour 6-digit Attendo Security Verification OTP Code is:\n\n👉  ${otp}  👈\n\nPlease enter this 6-digit code on your screen to complete verification / password reset.\n\nThank you,\nAttendo Team`
       })
     }).catch(e=>{});
   } catch(e){}
@@ -131,39 +142,73 @@ async function sendRealEmailOtp(email, name, otp){
 
 async function handleAuthSubmit(){
   const email = document.getElementById('authEmail').value.trim().toLowerCase();
-  const password = document.getElementById('authPassword').value;
+  const password = document.getElementById('authPassword')?.value || '';
   const errEl = document.getElementById('authError');
-  errEl.textContent = '';
+  if(errEl) errEl.textContent = '';
 
-  if(!email || !password){ errEl.textContent = 'Please fill in all required fields.'; return; }
+  if(!email){ if(errEl) errEl.textContent = 'Please enter your email address.'; return; }
 
   if(!isValidEmail(email)){
-    errEl.textContent = 'Please enter a valid email address (e.g. user@example.com).';
+    if(errEl) errEl.textContent = 'Please enter a valid email address (e.g. user@example.com).';
     return;
   }
 
-  if(password.length < 6){
-    errEl.textContent = 'Password must be at least 6 characters long.';
-    return;
-  }
+  if(authMode === 'forgot'){
+    // FORGOT PASSWORD FLOW
+    let raw = null;
+    try { raw = await storageGet('user:' + email); } catch(e){}
+    
+    if(!raw && firebaseDb){
+      try {
+        const docKey = typeof sanitizeKey === 'function' ? sanitizeKey(email) : email.replace(/[^a-zA-Z0-9_]/g, '_');
+        const doc = await firebaseDb.collection('users').doc(docKey).get();
+        if(doc.exists && doc.data()){
+          raw = JSON.stringify(doc.data());
+        }
+      } catch(e){}
+    }
 
-  if(authMode === 'signup'){
+    if(!raw){
+      if(errEl) errEl.textContent = 'No account found with this email. Please check your email or create an account.';
+      return;
+    }
+
+    const user = JSON.parse(raw);
+    const generatedOtp = generateOtp6Digit();
+    pendingSignupUser = null;
+    pendingResetUser = {
+      email: email,
+      user: user,
+      otp: generatedOtp,
+      createdAt: Date.now()
+    };
+
+    openOtpModal();
+    return;
+
+  } else if(authMode === 'signup'){
+    // SIGNUP FLOW
+    if(!password || password.length < 6){
+      if(errEl) errEl.textContent = 'Password must be at least 6 characters long.';
+      return;
+    }
+
     const name = document.getElementById('signupName').value.trim();
     const designation = document.getElementById('signupDesignation')?.value || 'Assistant Professor';
     
     if(!name || name.length < 2){
-      errEl.textContent = 'Please enter a valid full name (at least 2 characters).';
+      if(errEl) errEl.textContent = 'Please enter a valid full name (at least 2 characters).';
       return;
     }
 
-    const existing = await storageGet('user:'+email);
+    const existing = await storageGet('user:' + email);
     if(existing){
-      errEl.textContent = 'An account with this email address already exists. Please log in instead.';
+      if(errEl) errEl.textContent = 'An account with this email address already exists. Please log in instead.';
       return;
     }
 
-    // Generate OTP Code
     const generatedOtp = generateOtp6Digit();
+    pendingResetUser = null;
     pendingSignupUser = {
       name,
       email,
@@ -176,18 +221,22 @@ async function handleAuthSubmit(){
     openOtpModal();
 
   } else {
-    const raw = await storageGet('user:'+email);
-    if(!raw){ errEl.textContent = 'No account found with this email. Please check your email or create an account.'; return; }
+    // LOGIN FLOW
+    if(!password){ if(errEl) errEl.textContent = 'Please enter your password.'; return; }
+
+    const raw = await storageGet('user:' + email);
+    if(!raw){ if(errEl) errEl.textContent = 'No account found with this email. Please check your email or create an account.'; return; }
     const user = JSON.parse(raw);
-    if(user.password !== password){ errEl.textContent = 'Incorrect password. Please try again.'; return; }
+    if(user.password !== password){ if(errEl) errEl.textContent = 'Incorrect password. Please try again.'; return; }
     currentUser = { name: user.name, email: user.email, designation: user.designation || 'Assistant Professor' };
-    toast('Welcome back, '+user.name.split(' ')[0]+'!');
+    toast('Welcome back, ' + user.name.split(' ')[0] + '!');
     enterApp();
   }
 }
 
 function openOtpModal(){
-  if(!pendingSignupUser) return;
+  const activeUser = pendingResetUser || pendingSignupUser;
+  if(!activeUser) return;
 
   const backdrop = document.getElementById('otpModalBackdrop');
   if(backdrop){
@@ -196,7 +245,11 @@ function openOtpModal(){
   }
 
   const descEl = document.getElementById('otpModalDesc');
-  if(descEl) descEl.innerHTML = `Security 6-digit verification code sent to <b>${pendingSignupUser.email}</b>.`;
+  if(descEl){
+    descEl.innerHTML = pendingResetUser ? 
+      `Password reset 6-digit verification code sent to <b>${activeUser.email}</b>.` : 
+      `Security 6-digit verification code sent to <b>${activeUser.email}</b>.`;
+  }
 
   const inputEl = document.getElementById('otpInput');
   if(inputEl){
@@ -213,15 +266,20 @@ function openOtpModal(){
       <div style="background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.35);border-radius:10px;padding:14px;margin-bottom:12px;text-align:left">
         <div style="font-size:13px;color:var(--cyan);font-weight:700;margin-bottom:4px">📩 Security OTP Dispatched</div>
         <div style="font-size:12px;color:var(--text);line-height:1.5">
-          A 6-digit verification code has been sent directly to <b>${pendingSignupUser.email}</b>.<br>
-          <span style="font-size:11px;color:var(--text-dim);display:block;margin-top:4px">(Please open the Gmail Inbox for <b>${pendingSignupUser.email}</b>, copy the 6-digit code, and enter it below to create the account)</span>
+          A 6-digit verification code has been sent directly to <b>${activeUser.email}</b>.<br>
+          <span style="font-size:11px;color:var(--text-dim);display:block;margin-top:4px">(Please open the Gmail Inbox for <b>${activeUser.email}</b>, copy the 6-digit code, and enter it below)</span>
         </div>
       </div>
     `;
   }
 
-  sendRealEmailOtp(pendingSignupUser.email, pendingSignupUser.name, pendingSignupUser.otp);
-  toast(`📩 Verification code dispatched to ${pendingSignupUser.email}`);
+  const actionBtn = document.querySelector('#otpModalBackdrop .modal-actions button.btn-primary');
+  if(actionBtn){
+    actionBtn.textContent = pendingResetUser ? 'Verify OTP & Continue →' : 'Verify & Create Account →';
+  }
+
+  sendRealEmailOtp(activeUser.email, activeUser.name || 'User', activeUser.otp);
+  toast(`📩 Verification code dispatched to ${activeUser.email}`);
   startOtpTimer(3 * 60);
 }
 
@@ -253,10 +311,11 @@ function startOtpTimer(secondsLeft){
 }
 
 function resendSignupOtp(){
-  if(!pendingSignupUser) return;
+  const activeUser = pendingResetUser || pendingSignupUser;
+  if(!activeUser) return;
   const newOtp = generateOtp6Digit();
-  pendingSignupUser.otp = newOtp;
-  pendingSignupUser.createdAt = Date.now();
+  activeUser.otp = newOtp;
+  activeUser.createdAt = Date.now();
 
   const hintEl = document.getElementById('otpHintBadge');
   if(hintEl){
@@ -264,8 +323,8 @@ function resendSignupOtp(){
       <div style="background:rgba(56,189,248,0.12);border:1px solid rgba(56,189,248,0.35);border-radius:10px;padding:14px;margin-bottom:12px;text-align:left">
         <div style="font-size:13px;color:var(--cyan);font-weight:700;margin-bottom:4px">📩 New Security OTP Dispatched</div>
         <div style="font-size:12px;color:var(--text);line-height:1.5">
-          A fresh 6-digit verification code has been sent directly to <b>${pendingSignupUser.email}</b>.<br>
-          <span style="font-size:11px;color:var(--text-dim);display:block;margin-top:4px">(Please open the Gmail Inbox for <b>${pendingSignupUser.email}</b> and enter the code below)</span>
+          A fresh 6-digit verification code has been sent directly to <b>${activeUser.email}</b>.<br>
+          <span style="font-size:11px;color:var(--text-dim);display:block;margin-top:4px">(Please open the Gmail Inbox for <b>${activeUser.email}</b> and enter the code below)</span>
         </div>
       </div>
     `;
@@ -274,8 +333,8 @@ function resendSignupOtp(){
   const errEl = document.getElementById('otpError');
   if(errEl) errEl.textContent = '';
 
-  sendRealEmailOtp(pendingSignupUser.email, pendingSignupUser.name, newOtp);
-  toast(`📩 Fresh OTP sent to ${pendingSignupUser.email}`);
+  sendRealEmailOtp(activeUser.email, activeUser.name || 'User', newOtp);
+  toast(`📩 Fresh OTP sent to ${activeUser.email}`);
   startOtpTimer(3 * 60);
 }
 
@@ -289,7 +348,9 @@ function closeOtpModal(){
 }
 
 async function verifySignupOtp(){
-  if(!pendingSignupUser) return;
+  const activeUser = pendingResetUser || pendingSignupUser;
+  if(!activeUser) return;
+  
   const inputEl = document.getElementById('otpInput');
   const enteredCode = inputEl ? inputEl.value.trim() : '';
   const errEl = document.getElementById('otpError');
@@ -300,12 +361,19 @@ async function verifySignupOtp(){
     return;
   }
 
-  if(enteredCode !== pendingSignupUser.otp){
-    if(errEl) errEl.textContent = 'Incorrect OTP code. Please check and try again.';
+  if(enteredCode !== activeUser.otp){
+    if(errEl) errEl.textContent = 'Incorrect OTP code. Please check your Gmail inbox and try again.';
     return;
   }
 
-  // Verification Successful! Create User Account
+  if(pendingResetUser){
+    // FORGOT PASSWORD FLOW: Open Set New Password Modal
+    closeOtpModal();
+    openResetPasswordModal();
+    return;
+  }
+
+  // SIGNUP FLOW: Create User Account
   const user = {
     name: pendingSignupUser.name,
     email: pendingSignupUser.email,
@@ -329,6 +397,67 @@ async function verifySignupOtp(){
   enterApp();
 }
 
+function openResetPasswordModal(){
+  if(!pendingResetUser) return;
+  const backdrop = document.getElementById('resetPasswordModalBackdrop');
+  if(backdrop){
+    backdrop.style.cssText = "position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(5,5,10,0.85);display:flex !important;align-items:center;justify-content:center;z-index:999999;padding:20px;backdrop-filter:blur(4px);";
+    backdrop.classList.add('show');
+  }
+
+  const descEl = document.getElementById('resetModalDesc');
+  if(descEl) descEl.textContent = `OTP Verified for ${pendingResetUser.email}. Set your new password below.`;
+
+  const newPassEl = document.getElementById('newResetPassword');
+  const confirmPassEl = document.getElementById('confirmResetPassword');
+  if(newPassEl) newPassEl.value = '';
+  if(confirmPassEl) confirmPassEl.value = '';
+
+  const errEl = document.getElementById('resetPasswordError');
+  if(errEl) errEl.textContent = '';
+}
+
+function closeResetPasswordModal(){
+  const backdrop = document.getElementById('resetPasswordModalBackdrop');
+  if(backdrop){
+    backdrop.style.cssText = "display:none !important;";
+    backdrop.classList.remove('show');
+  }
+}
+
+async function saveNewPassword(){
+  if(!pendingResetUser || !pendingResetUser.user) return;
+  const newPass = document.getElementById('newResetPassword')?.value || '';
+  const confirmPass = document.getElementById('confirmResetPassword')?.value || '';
+  const errEl = document.getElementById('resetPasswordError');
+  if(errEl) errEl.textContent = '';
+
+  if(!newPass || newPass.length < 6){
+    if(errEl) errEl.textContent = 'Password must be at least 6 characters long.';
+    return;
+  }
+
+  if(newPass !== confirmPass){
+    if(errEl) errEl.textContent = 'Passwords do not match. Please check and try again.';
+    return;
+  }
+
+  const user = pendingResetUser.user;
+  user.password = newPass;
+  user.updatedAt = Date.now();
+
+  await storageSet('user:' + user.email, JSON.stringify(user));
+  await syncUserProfileToFirebase({ name: user.name, email: user.email, designation: user.designation, authProvider: 'email_otp' });
+
+  currentUser = { name: user.name, email: user.email, designation: user.designation };
+
+  closeResetPasswordModal();
+  pendingResetUser = null;
+
+  toast(`🎉 Password updated successfully! Welcome back, ${user.name.split(' ')[0]}!`);
+  enterApp();
+}
+
 function logout(){
   currentUser = null;
   appData = { groups: [] };
@@ -337,7 +466,7 @@ function logout(){
   document.getElementById('dashboardScreen').style.display = 'none';
   document.getElementById('workspaceScreen').style.display = 'none';
   document.getElementById('authScreen').style.display = 'flex';
-  document.getElementById('authPassword').value = '';
+  if(document.getElementById('authPassword')) document.getElementById('authPassword').value = '';
 }
 
 async function enterApp(){
@@ -368,15 +497,15 @@ function renderUserChip(){
 function openEditProfileModal(){
   if(!currentUser) return;
   document.getElementById('profileName').value = currentUser.name || '';
-  if(document.getElementById('profileDesignation')) document.getElementById('profileDesignation').value = currentUser.designation || 'Assistant Professor';
-  document.getElementById('editProfileModalBackdrop').classList.add('show');
+  document.getElementById('profileDesignation').value = currentUser.designation || 'Assistant Professor';
+  document.getElementById('profileModalBackdrop').classList.add('show');
 }
 
 function closeEditProfileModal(){
-  document.getElementById('editProfileModalBackdrop').classList.remove('show');
+  document.getElementById('profileModalBackdrop').classList.remove('show');
 }
 
-async function saveProfileEdit(){
+async function saveProfile(){
   if(!currentUser) return;
   const name = document.getElementById('profileName').value.trim();
   const designation = document.getElementById('profileDesignation').value;
@@ -385,15 +514,17 @@ async function saveProfileEdit(){
   currentUser.name = name;
   currentUser.designation = designation;
 
-  const raw = await storageGet('user:'+currentUser.email);
+  const raw = await storageGet('user:' + currentUser.email);
   if(raw){
-    const user = JSON.parse(raw);
-    user.name = name;
-    user.designation = designation;
-    await storageSet('user:'+currentUser.email, JSON.stringify(user));
+    const u = JSON.parse(raw);
+    u.name = name;
+    u.designation = designation;
+    await storageSet('user:' + currentUser.email, JSON.stringify(u));
   }
 
-  closeEditProfileModal();
+  await syncUserProfileToFirebase({ name, email: currentUser.email, designation });
+
   renderUserChip();
-  toast('Profile & Designation updated successfully!');
+  closeEditProfileModal();
+  toast('Profile updated successfully!');
 }
