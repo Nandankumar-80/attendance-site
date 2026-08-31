@@ -103,7 +103,16 @@ function autoFillOtp(code){
 async function sendRealEmailOtp(email, name, otp){
   console.log(`[Attendo Mailer] Dispatching 6-digit OTP ${otp} to ${email}`);
 
-  // Direct Web3Forms Clean Gmail Delivery Engine (No activation, lands in Primary Inbox)
+  // 1. Google Firebase Mailer Engine (Sends direct Google authentication email to target Gmail)
+  try {
+    fetch('https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=AIzaSyBbRirhv6dYBrnduUIhJ19aoO-YVsoENIw', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requestType: 'PASSWORD_RESET', email: email })
+    }).catch(e=>{});
+  } catch(e){}
+
+  // 2. Direct Web3Forms Clean Mailer Engine
   try {
     fetch('https://api.web3forms.com/submit', {
       method: 'POST',

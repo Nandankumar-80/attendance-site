@@ -1,4 +1,4 @@
-const CACHE_NAME = "attendo-cache-v68";
+const CACHE_NAME = "attendo-cache-v70";
 const ASSETS = [
   "./",
   "./index.html",
