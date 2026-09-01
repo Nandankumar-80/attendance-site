@@ -23,7 +23,9 @@ async function startQrAttendanceSession(){
   let teacherLat = null;
   let teacherLng = null;
 
-  // Pin-Point True Hardware Satellite GPS Engine for Teacher (with Fast Fallback)
+  let teacherAccuracy = null;
+
+  // Pin-Point High-Accuracy Satellite GPS Engine for Teacher
   if(navigator.geolocation){
     try {
       const pos = await new Promise((resolve) => {
@@ -34,10 +36,10 @@ async function startQrAttendanceSession(){
             navigator.geolocation.getCurrentPosition(
               (p2) => { if(!resolved){ resolved = true; resolve(p2); } },
               () => { if(!resolved){ resolved = true; resolve(null); } },
-              { enableHighAccuracy: false, timeout: 3000, maximumAge: 60000 }
+              { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
             );
           },
-          { enableHighAccuracy: true, timeout: 3500, maximumAge: 15000 }
+          { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
         );
 
         setTimeout(() => {
@@ -46,14 +48,15 @@ async function startQrAttendanceSession(){
             navigator.geolocation.getCurrentPosition(
               (p3) => resolve(p3),
               () => resolve(null),
-              { enableHighAccuracy: false, timeout: 2500, maximumAge: 120000 }
+              { enableHighAccuracy: false, timeout: 3000, maximumAge: 60000 }
             );
           }
-        }, 4000);
+        }, 6500);
       });
       if(pos && pos.coords){
         teacherLat = pos.coords.latitude;
         teacherLng = pos.coords.longitude;
+        teacherAccuracy = pos.coords.accuracy || null;
       }
     } catch(e){}
   }
@@ -66,7 +69,8 @@ async function startQrAttendanceSession(){
     subject: subjectStr,
     teacherLat: teacherLat,
     teacherLng: teacherLng,
-    geoRadius: 10,
+    teacherAccuracy: teacherAccuracy,
+    geoRadius: 35,
     createdAt: Date.now(),
     expiresAt: Date.now() + (12 * 60 * 1000)
   };

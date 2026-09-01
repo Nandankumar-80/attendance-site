@@ -335,12 +335,13 @@ async function submitPublicStudentAttendance(){
     } catch(e){}
   }
 
-  // Obtain Student Coords smoothly
-  let sLat = null, sLng = null;
+  // Obtain Student Coords smoothly with High Accuracy
+  let sLat = null, sLng = null, sAccuracy = null;
 
-  if(prefetchedStudentCoords && (Date.now() - prefetchedAt) < 30000){
+  if(prefetchedStudentCoords && (Date.now() - prefetchedAt) < 20000){
     sLat = prefetchedStudentCoords.latitude;
     sLng = prefetchedStudentCoords.longitude;
+    sAccuracy = prefetchedStudentCoords.accuracy || null;
   } else {
     try {
       const pos = await new Promise((resolve) => {
@@ -353,10 +354,10 @@ async function submitPublicStudentAttendance(){
             navigator.geolocation.getCurrentPosition(
               (p2) => { if(!resolved){ resolved = true; resolve(p2); } },
               () => { if(!resolved){ resolved = true; resolve(null); } },
-              { enableHighAccuracy: false, timeout: 3500, maximumAge: 120000 }
+              { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
             );
           },
-          { enableHighAccuracy: true, timeout: 3000, maximumAge: 30000 }
+          { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
         );
 
         setTimeout(() => {
@@ -365,22 +366,23 @@ async function submitPublicStudentAttendance(){
             navigator.geolocation.getCurrentPosition(
               (p3) => resolve(p3),
               () => resolve(null),
-              { enableHighAccuracy: false, timeout: 2500, maximumAge: 300000 }
+              { enableHighAccuracy: false, timeout: 3000, maximumAge: 60000 }
             );
           }
-        }, 3500);
+        }, 6500);
       });
 
       if(pos && pos.coords){
         sLat = pos.coords.latitude;
         sLng = pos.coords.longitude;
+        sAccuracy = pos.coords.accuracy || null;
         prefetchedStudentCoords = pos.coords;
         prefetchedAt = Date.now();
       }
     } catch(e){}
   }
 
-  // Mandatory Strict 10-Meter Geofence Engine (WiFi / Mobile SIM Network Proof)
+  // Universal Classroom Geofence Engine (Dynamic Indoor Radius + Cell Tower Drift Shield)
   if(!isNaN(tlat) && !isNaN(tlng)){
     if(sLat === null || sLng === null){
       if(btn){
@@ -398,15 +400,18 @@ async function submitPublicStudentAttendance(){
         statusEl.innerHTML = `
           <div style="font-size:36px;margin-bottom:6px">📍</div>
           <h3 style="margin:0 0 6px 0;font-size:16px;color:#ef4444">GPS Location Access Required!</h3>
-          <p style="margin:0;font-size:13px;line-height:1.5">Strict 10-meter geofenced attendance requires high-accuracy GPS location on your phone.<br><span style="font-size:12px;color:var(--text-dim)">Please turn on Location/GPS on your device, allow browser permission, and tap Mark Me Present again.</span></p>
+          <p style="margin:0;font-size:13px;line-height:1.5">Classroom geofenced attendance requires high-accuracy GPS location on your phone.<br><span style="font-size:12px;color:var(--text-dim)">Please turn on Location/GPS on your device, allow browser permission, and tap Mark Me Present again.</span></p>
         `;
       }
       return;
     }
 
     const distMeters = calculateHaversineDistanceMeters(tlat, tlng, sLat, sLng);
-    if(distMeters > 10){
-      prefetchedStudentCoords = null; // Clear cache on far away detection
+    // Dynamic Indoor Radius: Accounts for GPS drift inside concrete classrooms/buildings
+    const allowedRadiusMeters = Math.max(35, Math.min(80, (sAccuracy || 20) + 20));
+
+    if(distMeters > allowedRadiusMeters){
+      prefetchedStudentCoords = null; // Clear stale cache on far away detection
       if(btn){
         btn.disabled = false;
         btn.textContent = '✅ Mark Me Present';
@@ -422,12 +427,15 @@ async function submitPublicStudentAttendance(){
         statusEl.innerHTML = `
           <div style="font-size:36px;margin-bottom:6px">🚫</div>
           <h3 style="margin:0 0 6px 0;font-size:16px;color:#ef4444">Sorry, You are Far Away!</h3>
-          <p style="margin:0;font-size:13px;line-height:1.5">You are currently <b>${distMeters} meters</b> away from the teacher.<br><span style="font-size:12px;color:var(--text-dim)">Strict 10-meter geofenced attendance requires you to be near the teacher. Please move closer and tap Mark Me Present again.</span></p>
+          <p style="margin:0 0 10px 0;font-size:13px;line-height:1.5">You are currently <b>${distMeters} meters</b> away from the teacher.<br><span style="font-size:12px;color:var(--text-dim)">Geofenced attendance requires you to be inside the classroom. If you are in class, tap Recalibrate GPS below.</span></p>
+          <button class="btn btn-sm btn-block" onclick="recalibrateStudentGps()" style="background:var(--violet2);color:#fff;font-weight:700;padding:8px;font-size:12px">
+            ⚡ Recalibrate High-Accuracy Indoor GPS
+          </button>
         `;
       }
       return;
     } else {
-      geoNote = `📍 Verified (Within 10m Classroom Radius • ${distMeters}m)`;
+      geoNote = `📍 Verified (Within Classroom Radius • ${distMeters}m)`;
     }
   }
 
@@ -642,5 +650,41 @@ async function scanQrFromGallery(event){
     if(errEl) errEl.textContent = 'Could not detect a valid Attendo QR code in this image. Please select a clear QR image/screenshot.';
   } finally {
     event.target.value = '';
+  }
+}
+
+async function recalibrateStudentGps(){
+  prefetchedStudentCoords = null;
+  prefetchedAt = 0;
+  const statusEl = document.getElementById('portalStatusMsg') || document.getElementById('portalStatusMessage');
+  if(statusEl){
+    statusEl.style.display = 'block';
+    statusEl.style.background = 'rgba(56,189,248,0.15)';
+    statusEl.style.color = 'var(--cyan)';
+    statusEl.style.border = '1px solid rgba(56,189,248,0.3)';
+    statusEl.style.padding = '14px';
+    statusEl.style.borderRadius = '10px';
+    statusEl.innerHTML = `🛰️ <b>Recalibrating Hardware GPS Satellite...</b><br><span style="font-size:12px">Acquiring high-accuracy indoor position. Please wait...</span>`;
+  }
+  if(navigator.geolocation){
+    try {
+      navigator.geolocation.getCurrentPosition(
+        (p) => {
+          if(p && p.coords){
+            prefetchedStudentCoords = p.coords;
+            prefetchedAt = Date.now();
+            submitPublicStudentAttendance();
+          }
+        },
+        () => {
+          submitPublicStudentAttendance();
+        },
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+      );
+    } catch(e){
+      submitPublicStudentAttendance();
+    }
+  } else {
+    submitPublicStudentAttendance();
   }
 }
