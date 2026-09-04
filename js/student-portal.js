@@ -261,6 +261,89 @@ async function openStudentPublicPortal(sessionId, email, gid){
   }
 }
 
+async function collectSampledStudentLocation(targetSampleCount = 8, maxWaitMs = 2500){
+  if(!navigator.geolocation) return null;
+  console.log(`[qr_flow] [STEP 1/4] Starting GPS sampling engine (Target: ${targetSampleCount} samples, Timeout: ${maxWaitMs}ms)...`);
+  const samples = [];
+  const start = Date.now();
+
+  for(let i = 0; i < targetSampleCount; i++){
+    if(Date.now() - start > maxWaitMs) break;
+    try {
+      const pos = await new Promise((resolve) => {
+        let done = false;
+        navigator.geolocation.getCurrentPosition(
+          (p) => { if(!done){ done = true; resolve(p); } },
+          () => { if(!done){ done = true; resolve(null); } },
+          { enableHighAccuracy: true, timeout: 800, maximumAge: 0 }
+        );
+        setTimeout(() => { if(!done){ done = true; resolve(null); } }, 900);
+      });
+
+      if(pos && pos.coords && pos.coords.latitude && pos.coords.longitude){
+        const acc = pos.coords.accuracy || 30;
+        samples.push({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: acc
+        });
+        console.log(`[qr_flow] GPS Sample ${samples.length}/${targetSampleCount} acquired | Lat: ${pos.coords.latitude.toFixed(7)}, Lng: ${pos.coords.longitude.toFixed(7)}, Accuracy: ${acc.toFixed(1)}m`);
+      }
+    } catch(e){}
+    await new Promise(r => setTimeout(r, 40));
+  }
+
+  // Discard samples with accuracy > 50m
+  const validSamples = samples.filter(s => s.accuracy <= 50);
+  console.log(`[qr_flow] [STEP 2/4] Validated ${validSamples.length}/${samples.length} GPS samples (accuracy <= 50m). Discarded: ${samples.length - validSamples.length} outlier(s).`);
+
+  if(validSamples.length < 3){
+    console.warn(`[qr_flow] Sampling failed: Acquired only ${validSamples.length} valid sample(s). Minimum required: 3.`);
+    return {
+      validSamplesCount: validSamples.length,
+      requestedSamplesCount: targetSampleCount,
+      isSufficient: false,
+      reason: 'INSUFFICIENT_VALID_SAMPLES'
+    };
+  }
+
+  // Compute robust median position
+  const sortedLats = validSamples.map(s => s.lat).sort((a,b) => a - b);
+  const sortedLngs = validSamples.map(s => s.lng).sort((a,b) => a - b);
+  const mid = Math.floor(sortedLats.length / 2);
+
+  const medianLat = sortedLats.length % 2 !== 0
+    ? sortedLats[mid]
+    : (sortedLats[mid - 1] + sortedLats[mid]) / 2;
+
+  const medianLng = sortedLngs.length % 2 !== 0
+    ? sortedLngs[mid]
+    : (sortedLngs[mid - 1] + sortedLngs[mid]) / 2;
+
+  const avgAccuracy = Math.round(validSamples.reduce((sum, s) => sum + s.accuracy, 0) / validSamples.length * 100) / 100;
+
+  // Calculate position spread (max pairwise Haversine distance among valid samples)
+  let maxSpread = 0;
+  for(let i = 0; i < validSamples.length; i++){
+    for(let j = i + 1; j < validSamples.length; j++){
+      const d = calculateHaversineDistanceMeters(validSamples[i].lat, validSamples[i].lng, validSamples[j].lat, validSamples[j].lng);
+      if(d > maxSpread) maxSpread = d;
+    }
+  }
+
+  console.log(`[qr_flow] Robust Median Position | Lat: ${medianLat.toFixed(7)}, Lng: ${medianLng.toFixed(7)} | Mean Acc: ${avgAccuracy}m | Max Spread: ${maxSpread.toFixed(2)}m`);
+
+  return {
+    sLat: medianLat,
+    sLng: medianLng,
+    sAccuracy: avgAccuracy,
+    positionSpreadMeters: Math.round(maxSpread * 100) / 100,
+    validSamplesCount: validSamples.length,
+    requestedSamplesCount: targetSampleCount,
+    isSufficient: true
+  };
+}
+
 async function submitPublicStudentAttendance(){
   if(!publicPortalData) return;
   const select = document.getElementById('portalStudentSelect');
@@ -317,11 +400,11 @@ async function submitPublicStudentAttendance(){
     } catch(e){}
   }
 
-  // Geofence Validation Setup
+  // Geofence Validation & Multi-Sample Setup
   const params = new URLSearchParams(window.location.search);
   let tlat = parseFloat(params.get('tlat') || (publicPortalData && publicPortalData.tlat));
   let tlng = parseFloat(params.get('tlng') || (publicPortalData && publicPortalData.tlng));
-  let geoNote = '📍 Verified (Classroom QR Scanned)';
+  let tacc = parseFloat(params.get('tacc') || (publicPortalData && publicPortalData.tacc));
 
   // Cloud fallback for teacher location if missing in URL
   if((isNaN(tlat) || isNaN(tlng)) && firebaseDb && publicPortalData && publicPortalData.sessionId){
@@ -331,146 +414,216 @@ async function submitPublicStudentAttendance(){
         const qd = qdoc.data();
         if(qd.teacherLat) tlat = parseFloat(qd.teacherLat);
         if(qd.teacherLng) tlng = parseFloat(qd.teacherLng);
+        if(qd.teacherAccuracy) tacc = parseFloat(qd.teacherAccuracy);
       }
     } catch(e){}
   }
 
-  // Obtain Student Coords smoothly with High Accuracy
-  let sLat = null, sLng = null, sAccuracy = null;
+  const g = publicPortalData.targetGroup;
+  const student = (g && g.students || []).find(s => s.id === studentId);
+  const sName = student ? student.name : 'Student';
+  const sRoll = student ? student.rollNo : '';
 
-  if(prefetchedStudentCoords && (Date.now() - prefetchedAt) < 20000){
-    sLat = prefetchedStudentCoords.latitude;
-    sLng = prefetchedStudentCoords.longitude;
-    sAccuracy = prefetchedStudentCoords.accuracy || null;
-  } else {
-    try {
-      const pos = await new Promise((resolve) => {
-        if(!navigator.geolocation) return resolve(null);
-        let resolved = false;
+  // Obtain 5-8 Sample Robust Student Position
+  const sampleResult = await collectSampledStudentLocation(8, 2500);
 
-        navigator.geolocation.getCurrentPosition(
-          (p) => { if(!resolved){ resolved = true; resolve(p); } },
-          () => {
-            navigator.geolocation.getCurrentPosition(
-              (p2) => { if(!resolved){ resolved = true; resolve(p2); } },
-              () => { if(!resolved){ resolved = true; resolve(null); } },
-              { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
-            );
-          },
-          { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
-        );
+  if(!sampleResult || !sampleResult.isSufficient || sampleResult.validSamplesCount < 3){
+    console.warn(`[qr_flow] Scan Attempt Failed | Student: ${studentId} (${sName}) | Reason: INSUFFICIENT_VALID_SAMPLES | Valid Samples: ${sampleResult ? sampleResult.validSamplesCount : 0}/8`);
+    
+    // Save attempt telemetry to Firestore qrcode node even on insufficient samples
+    if(firebaseDb && publicPortalData.sessionId){
+      const scannerRecord = {
+        studentId: studentId,
+        name: sName,
+        rollNo: sRoll,
+        status: 'LOCATION_UNCERTAIN',
+        decisionReason: 'INSUFFICIENT_VALID_SAMPLES',
+        validSamplesCount: sampleResult ? sampleResult.validSamplesCount : 0,
+        requestedSamplesCount: 8,
+        scannedAt: Date.now()
+      };
+      firebaseDb.collection('qrcode').doc(publicPortalData.sessionId).set({
+        id: publicPortalData.sessionId,
+        updatedAt: Date.now(),
+        scanners: { [studentId]: scannerRecord }
+      }, { merge: true }).catch(e=>{});
+      firebaseDb.collection('qrcode').doc(publicPortalData.sessionId).collection('scans').doc(studentId).set(scannerRecord, { merge: true }).catch(e=>{});
+    }
 
-        setTimeout(() => {
-          if(!resolved){
-            resolved = true;
-            navigator.geolocation.getCurrentPosition(
-              (p3) => resolve(p3),
-              () => resolve(null),
-              { enableHighAccuracy: false, timeout: 3000, maximumAge: 60000 }
-            );
-          }
-        }, 6500);
+    if(btn){
+      btn.disabled = false;
+      btn.textContent = '✅ Mark Me Present';
+    }
+    if(statusEl){
+      statusEl.style.display = 'block';
+      statusEl.style.background = 'rgba(245,158,11,0.15)';
+      statusEl.style.color = '#f59e0b';
+      statusEl.style.border = '1px solid rgba(245,158,11,0.3)';
+      statusEl.style.padding = '16px';
+      statusEl.style.borderRadius = '12px';
+      statusEl.style.textAlign = 'center';
+      statusEl.innerHTML = `
+        <div style="font-size:36px;margin-bottom:6px">📡</div>
+        <h3 style="margin:0 0 6px 0;font-size:16px;color:#f59e0b">Location Signal Uncertain</h3>
+        <p style="margin:0;font-size:13px;line-height:1.5">Acquired only ${sampleResult ? sampleResult.validSamplesCount : 0} valid GPS sample(s) under 50m accuracy.<br><span style="font-size:12px;color:var(--text-dim)">Please step closer to a window or open area, hold your phone steady, and tap Mark Me Present again.</span></p>
+      `;
+    }
+    if(typeof sendVercelLog === 'function'){
+      sendVercelLog({
+        flow: 'qr_scan',
+        sessionId: publicPortalData.sessionId,
+        studentId: studentId,
+        name: sName,
+        rollNo: sRoll,
+        status: 'LOCATION_UNCERTAIN',
+        decisionReason: 'INSUFFICIENT_VALID_SAMPLES',
+        validSamplesCount: sampleResult ? sampleResult.validSamplesCount : 0,
+        requestedSamplesCount: 8
       });
+    }
+    return;
+  }
 
-      if(pos && pos.coords){
-        sLat = pos.coords.latitude;
-        sLng = pos.coords.longitude;
-        sAccuracy = pos.coords.accuracy || null;
-        prefetchedStudentCoords = pos.coords;
-        prefetchedAt = Date.now();
+  const { sLat, sLng, sAccuracy, positionSpreadMeters, validSamplesCount, requestedSamplesCount } = sampleResult;
+
+  // Calculate GPS-estimated Haversine distance from teacher attendance point
+  let distMeters = null;
+  if(!isNaN(tlat) && !isNaN(tlng)){
+    distMeters = calculateHaversineDistanceMeters(tlat, tlng, sLat, sLng);
+  }
+
+  console.log(`[qr_flow] [STEP 3/4] Evaluating Haversine Distance & Decision Engine...`);
+  console.log(`[qr_flow] Teacher Point: (${tlat}, ${tlng}, Acc: ${tacc || 'N/A'}m) | Student Median: (${sLat.toFixed(7)}, ${sLng.toFixed(7)}, Acc: ${sAccuracy}m) | Distance: ${distMeters}m`);
+
+  // Production 10-Meter Decision Engine
+  let status = 'ALLOWED';
+  let decisionReason = 'WITHIN_10M_GOOD_CONFIDENCE';
+  let locationConfidence = 'GOOD';
+
+  if(distMeters !== null && distMeters > 10.0){
+    status = 'WARNING_DISTANCE';
+    decisionReason = 'DISTANCE_EXCEEDS_10M';
+    locationConfidence = 'POOR';
+  } else if(sAccuracy > 20.0){
+    status = 'LOCATION_UNCERTAIN';
+    decisionReason = 'POOR_ACCURACY_EXCEEDS_20M';
+    locationConfidence = 'POOR';
+  } else if(positionSpreadMeters > 15.0){
+    status = 'LOCATION_UNCERTAIN';
+    decisionReason = 'HIGH_POSITION_SPREAD_EXCEEDS_15M';
+    locationConfidence = 'POOR';
+  }
+
+  // Calculate session creation time delta
+  let timeDeltaSeconds = 0;
+  if(firebaseDb && publicPortalData.sessionId){
+    try {
+      const qdoc = await firebaseDb.collection('attendo_qr_sessions').doc(publicPortalData.sessionId).get();
+      if(qdoc.exists && qdoc.data() && qdoc.data().createdAt){
+        timeDeltaSeconds = Math.round((Date.now() - qdoc.data().createdAt) / 1000);
       }
     } catch(e){}
   }
 
-  console.log(`[qr_flow] QR Scanned / Attendance Submitting | Session ID: ${publicPortalData.sessionId} | Student: ${studentId} | Scanner Lat: ${sLat}, Lng: ${sLng}`);
+  console.log(`[qr_flow] Decision Engine Result -> Status: ${status} | Reason: ${decisionReason} | Confidence: ${locationConfidence} | Time Delta: ${timeDeltaSeconds}s`);
 
+  // Construct complete telemetry record for Firestore and Vercel
+  const scannerRecord = {
+    studentId: studentId,
+    name: sName,
+    rollNo: sRoll,
+    lat: sLat,
+    lng: sLng,
+    studentAccuracy: sAccuracy,
+    teacherLat: isNaN(tlat) ? null : tlat,
+    teacherLng: isNaN(tlng) ? null : tlng,
+    teacherAccuracy: isNaN(tacc) ? null : tacc,
+    distanceMeters: distMeters,
+    status: status,
+    locationConfidence: locationConfidence,
+    decisionReason: decisionReason,
+    validSamplesCount: validSamplesCount,
+    requestedSamplesCount: requestedSamplesCount,
+    positionSpreadMeters: positionSpreadMeters,
+    timeDeltaSeconds: timeDeltaSeconds,
+    scannedAt: Date.now()
+  };
+
+  // [STEP 4/4] Save complete telemetry to Firestore qrcode node for ALL scan attempts
+  if(firebaseDb && publicPortalData.sessionId){
+    console.log(`[qr_flow] [STEP 4/4] Saving telemetry to Firestore database node (qrcode -> ${publicPortalData.sessionId})...`);
+    
+    // 1. Save to parent doc map: qrcode/{sessionId} -> scanners.{studentId}
+    firebaseDb.collection('qrcode').doc(publicPortalData.sessionId).set({
+      id: publicPortalData.sessionId,
+      updatedAt: Date.now(),
+      scanners: {
+        [studentId]: scannerRecord
+      }
+    }, { merge: true }).then(() => {
+      console.log(`[qr_flow] Firestore map update successful: qrcode -> ${publicPortalData.sessionId} -> scanners -> ${studentId} (Status: ${status})`);
+    }).catch(e => console.error('[qr_flow] Firestore update error:', e));
+
+    // 2. Save to subcollection: qrcode/{sessionId}/scans/{studentId}
+    firebaseDb.collection('qrcode').doc(publicPortalData.sessionId).collection('scans').doc(studentId).set(scannerRecord, { merge: true }).then(() => {
+      console.log(`[qr_flow] Firestore subcollection update successful: qrcode/${publicPortalData.sessionId}/scans/${studentId}`);
+    }).catch(e=>{});
+  }
+
+  // Send complete telemetry payload to Vercel backend logs
   if(typeof sendVercelLog === 'function'){
-    const g = publicPortalData.targetGroup;
-    const student = (g && g.students || []).find(s => s.id === studentId);
     sendVercelLog({
       flow: 'qr_scan',
       sessionId: publicPortalData.sessionId,
-      studentId: studentId,
-      name: student ? student.name : '',
-      rollNo: student ? student.rollNo : '',
-      lat: sLat,
-      lng: sLng
+      ...scannerRecord
     });
+    console.log(`[qr_flow] Telemetry relay payload sent to Vercel backend endpoint (/api/log).`);
   }
 
-  // Universal Classroom Geofence Engine (Dynamic Indoor Radius + Cell Tower Drift Shield)
-  if(!isNaN(tlat) && !isNaN(tlng)){
-    if(sLat === null || sLng === null){
-      if(btn){
-        btn.disabled = false;
-        btn.textContent = '✅ Mark Me Present';
-      }
-      if(statusEl){
-        statusEl.style.display = 'block';
-        statusEl.style.background = 'rgba(248,113,113,0.15)';
-        statusEl.style.color = '#ef4444';
-        statusEl.style.border = '1px solid rgba(248,113,113,0.3)';
-        statusEl.style.padding = '16px';
-        statusEl.style.borderRadius = '12px';
-        statusEl.style.textAlign = 'center';
-        statusEl.innerHTML = `
-          <div style="font-size:36px;margin-bottom:6px">📍</div>
-          <h3 style="margin:0 0 6px 0;font-size:16px;color:#ef4444">GPS Location Access Required!</h3>
-          <p style="margin:0;font-size:13px;line-height:1.5">Classroom geofenced attendance requires high-accuracy GPS location on your phone.<br><span style="font-size:12px;color:var(--text-dim)">Please turn on Location/GPS on your device, allow browser permission, and tap Mark Me Present again.</span></p>
-        `;
-      }
-      return;
+  // Handle Non-ALLOWED Decisions (Rejections & Uncertainty Warnings)
+  if(status !== 'ALLOWED'){
+    if(btn){
+      btn.disabled = false;
+      btn.textContent = '✅ Mark Me Present';
     }
+    if(statusEl){
+      statusEl.style.display = 'block';
+      statusEl.style.borderRadius = '14px';
+      statusEl.style.padding = '18px';
+      statusEl.style.textAlign = 'center';
 
-    const distMeters = calculateHaversineDistanceMeters(tlat, tlng, sLat, sLng);
-    // Universal Indoor Building Radius: Accounts for multi-story university classrooms and GPS drift
-    const allowedRadiusMeters = Math.max(100, Math.min(250, (sAccuracy || 30) + 50));
-
-    if(distMeters > allowedRadiusMeters && !window.forceBypassGeo){
-      prefetchedStudentCoords = null; // Clear stale cache on far away detection
-      if(btn){
-        btn.disabled = false;
-        btn.textContent = '✅ Mark Me Present';
-      }
-      if(statusEl){
-        statusEl.style.display = 'block';
+      if(status === 'WARNING_DISTANCE'){
         statusEl.style.background = 'rgba(248,113,113,0.15)';
         statusEl.style.color = '#ef4444';
         statusEl.style.border = '1px solid rgba(248,113,113,0.3)';
-        statusEl.style.padding = '16px';
-        statusEl.style.borderRadius = '12px';
-        statusEl.style.textAlign = 'center';
         statusEl.innerHTML = `
-          <div style="font-size:36px;margin-bottom:6px">🚫</div>
+          <div style="font-size:36px;margin-bottom:6px">⚠️</div>
           <h3 style="margin:0 0 6px 0;font-size:16px;color:#ef4444">Location Distance Notice (${distMeters}m)</h3>
-          <p style="margin:0 0 12px 0;font-size:13px;line-height:1.5">Your phone is showing a Cell Tower / Indoor Location Offset (<b>${distMeters} meters</b>).<br><span style="font-size:12px;color:var(--text-dim)">If you are in class, tap Auto-Align below to confirm attendance.</span></p>
-          <div style="display:flex;flex-direction:column;gap:8px">
-            <button class="btn btn-sm btn-block" onclick="window.forceBypassGeo=true;submitPublicStudentAttendance();" style="background:var(--cyan);color:#05050a;font-weight:800;padding:10px;font-size:13px">
-              ⚡ Auto-Align Location & Mark Present
-            </button>
-            <button class="btn btn-sm btn-block" onclick="recalibrateStudentGps()" style="background:var(--card2);border:1px solid var(--border);color:var(--text-dim);font-weight:600;padding:8px;font-size:12px">
-              🛰️ Recalibrate Satellite GPS
-            </button>
-          </div>
+          <p style="margin:0 0 10px 0;font-size:13px;line-height:1.5">You appear to be <b>${distMeters} meters</b> away from the classroom attendance point (GPS-estimated).<br><span style="font-size:12px;color:var(--text-dim)">Attendance requires being within 10 meters of the teacher location. Please move closer to the teacher/classroom and try again.</span></p>
+        `;
+      } else {
+        statusEl.style.background = 'rgba(245,158,11,0.15)';
+        statusEl.style.color = '#f59e0b';
+        statusEl.style.border = '1px solid rgba(245,158,11,0.3)';
+        statusEl.innerHTML = `
+          <div style="font-size:36px;margin-bottom:6px">🛰️</div>
+          <h3 style="margin:0 0 6px 0;font-size:16px;color:#f59e0b">GPS Signal Uncertain (Accuracy: ${sAccuracy}m, Spread: ${positionSpreadMeters}m)</h3>
+          <p style="margin:0 0 10px 0;font-size:13px;line-height:1.5">Your phone GPS readings are unstable or inaccurate.<br><span style="font-size:12px;color:var(--text-dim)">Please hold your phone steady near a window or open area and tap Mark Me Present again.</span></p>
         `;
       }
-      return;
-    } else {
-      geoNote = `📍 Verified (Classroom QR Scanned • ${distMeters}m)`;
-      window.forceBypassGeo = false; // Reset flag after success
     }
+    return;
   }
 
+  // Allowed Flow: Mark present in group state
   if(btn){
     btn.disabled = true;
     btn.textContent = 'Submitting...';
   }
 
   try {
-    const g = publicPortalData.targetGroup;
     if(g){
       if(!g.sessions) g.sessions = [];
-
       let sess = g.sessions.find(s => s.id === publicPortalData.sessionId);
       if(!sess){
         sess = {
@@ -481,17 +634,13 @@ async function submitPublicStudentAttendance(){
         };
         g.sessions.push(sess);
       }
-
       if(!sess.records) sess.records = {};
       sess.records[studentId] = true;
     }
 
-    // Get student info for confirmation card
-    const student = (g && g.students || []).find(s => s.id === studentId);
-    const sName = student ? student.name : 'Student';
-    const sRoll = student ? student.rollNo : '';
     const instName = portalGroupInstitution(g);
     const classLbl = portalGroupLabel(g);
+    const geoNote = `📍 Verified (GPS-Estimated Distance: ${distMeters !== null ? distMeters + 'm' : 'Confirmed'})`;
 
     // Save device lock token to prevent duplicate submissions from same phone
     try {
@@ -533,14 +682,25 @@ async function submitPublicStudentAttendance(){
         lastMarkedAt: Date.now()
       }, { merge: true }).catch(e=>{});
 
-      // 2. Main Database Node Write: qrcode -> id -> scanners
+      // 2. Main Database Telemetry Node Write: qrcode -> id -> scanners -> studentId
       const scannerRecord = {
         studentId: studentId,
         name: sName,
         rollNo: sRoll,
         lat: sLat,
         lng: sLng,
-        accuracy: sAccuracy,
+        studentAccuracy: sAccuracy,
+        teacherLat: isNaN(tlat) ? null : tlat,
+        teacherLng: isNaN(tlng) ? null : tlng,
+        teacherAccuracy: isNaN(tacc) ? null : tacc,
+        distanceMeters: distMeters,
+        status: status,
+        locationConfidence: locationConfidence,
+        decisionReason: decisionReason,
+        validSamplesCount: validSamplesCount,
+        requestedSamplesCount: requestedSamplesCount,
+        positionSpreadMeters: positionSpreadMeters,
+        timeDeltaSeconds: timeDeltaSeconds,
         scannedAt: Date.now()
       };
 
@@ -549,11 +709,34 @@ async function submitPublicStudentAttendance(){
           [studentId]: scannerRecord
         }
       }, { merge: true }).then(() => {
-        console.log(`[qr_flow] Database node updated: qrcode -> ${publicPortalData.sessionId} -> scanners -> ${studentId} (Scanner Lat: ${sLat}, Lng: ${sLng})`);
-      }).catch(e => console.error('[qr_flow] Error updating qrcode node scanner details:', e));
+        console.log(`[qr_flow] Telemetry updated: qrcode -> ${publicPortalData.sessionId} -> scanners -> ${studentId} (Dist: ${distMeters}m, Status: ${status})`);
+      }).catch(e => console.error('[qr_flow] Error updating qrcode node telemetry:', e));
     }
 
-    // 3. Non-blocking background save to storageSet
+    // 3. Send complete telemetry payload to Vercel backend logs
+    if(typeof sendVercelLog === 'function'){
+      sendVercelLog({
+        flow: 'qr_scan',
+        sessionId: publicPortalData.sessionId,
+        studentId: studentId,
+        name: sName,
+        rollNo: sRoll,
+        lat: sLat,
+        lng: sLng,
+        studentAccuracy: sAccuracy,
+        teacherAccuracy: isNaN(tacc) ? null : tacc,
+        distanceMeters: distMeters,
+        status: status,
+        decisionReason: decisionReason,
+        locationConfidence: locationConfidence,
+        validSamplesCount: validSamplesCount,
+        requestedSamplesCount: requestedSamplesCount,
+        positionSpreadMeters: positionSpreadMeters,
+        timeDeltaSeconds: timeDeltaSeconds
+      });
+    }
+
+    // 4. Non-blocking background save to storageSet
     try {
       if(publicPortalData.email && publicPortalData.userAppData){
         storageSet('data:' + publicPortalData.email, JSON.stringify(publicPortalData.userAppData)).catch(e=>{});
