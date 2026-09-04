@@ -382,6 +382,22 @@ async function submitPublicStudentAttendance(){
     } catch(e){}
   }
 
+  console.log(`[qr_flow] QR Scanned / Attendance Submitting | Session ID: ${publicPortalData.sessionId} | Student: ${studentId} | Scanner Lat: ${sLat}, Lng: ${sLng}`);
+
+  if(typeof sendVercelLog === 'function'){
+    const g = publicPortalData.targetGroup;
+    const student = (g && g.students || []).find(s => s.id === studentId);
+    sendVercelLog({
+      flow: 'qr_scan',
+      sessionId: publicPortalData.sessionId,
+      studentId: studentId,
+      name: student ? student.name : '',
+      rollNo: student ? student.rollNo : '',
+      lat: sLat,
+      lng: sLng
+    });
+  }
+
   // Universal Classroom Geofence Engine (Dynamic Indoor Radius + Cell Tower Drift Shield)
   if(!isNaN(tlat) && !isNaN(tlng)){
     if(sLat === null || sLng === null){
@@ -516,9 +532,28 @@ async function submitPublicStudentAttendance(){
         lastStudentMarked: sName,
         lastMarkedAt: Date.now()
       }, { merge: true }).catch(e=>{});
+
+      // 2. Main Database Node Write: qrcode -> id -> scanners
+      const scannerRecord = {
+        studentId: studentId,
+        name: sName,
+        rollNo: sRoll,
+        lat: sLat,
+        lng: sLng,
+        accuracy: sAccuracy,
+        scannedAt: Date.now()
+      };
+
+      firebaseDb.collection('qrcode').doc(publicPortalData.sessionId).set({
+        scanners: {
+          [studentId]: scannerRecord
+        }
+      }, { merge: true }).then(() => {
+        console.log(`[qr_flow] Database node updated: qrcode -> ${publicPortalData.sessionId} -> scanners -> ${studentId} (Scanner Lat: ${sLat}, Lng: ${sLng})`);
+      }).catch(e => console.error('[qr_flow] Error updating qrcode node scanner details:', e));
     }
 
-    // 2. Non-blocking background save to storageSet
+    // 3. Non-blocking background save to storageSet
     try {
       if(publicPortalData.email && publicPortalData.userAppData){
         storageSet('data:' + publicPortalData.email, JSON.stringify(publicPortalData.userAppData)).catch(e=>{});
@@ -598,6 +633,7 @@ async function closeCameraQrScanner(){
 
 function onCameraQrCodeScanned(scannedUrl){
   closeCameraQrScanner();
+  console.log(`[qr_flow] Camera Scanned QR Code URL: ${scannedUrl}`);
   if(typeof toast === 'function') toast('📷 QR Code Scanned!');
   try {
     let fullUrl = (scannedUrl || '').trim();

@@ -61,6 +61,18 @@ async function startQrAttendanceSession(){
     } catch(e){}
   }
 
+  console.log(`[qr_flow] QR Generated | ID: ${activeQrSessionId} | Generator Lat: ${teacherLat}, Lng: ${teacherLng}`);
+  
+  if(typeof sendVercelLog === 'function'){
+    sendVercelLog({
+      flow: 'qr_generation',
+      sessionId: activeQrSessionId,
+      email: currentUser ? currentUser.email : '',
+      lat: teacherLat,
+      lng: teacherLng
+    });
+  }
+
   const sessionMeta = {
     sessionId: activeQrSessionId,
     email: currentUser ? currentUser.email : '',
@@ -75,10 +87,27 @@ async function startQrAttendanceSession(){
     expiresAt: Date.now() + (12 * 60 * 1000)
   };
 
+  const qrNodeData = {
+    id: activeQrSessionId,
+    generatorLat: teacherLat,
+    generatorLng: teacherLng,
+    generator: {
+      lat: teacherLat,
+      lng: teacherLng,
+      accuracy: teacherAccuracy,
+      email: currentUser ? currentUser.email : '',
+      createdAt: Date.now()
+    },
+    scanners: {},
+    createdAt: Date.now()
+  };
+
   if(firebaseDb){
     try {
       await firebaseDb.collection('attendo_qr_sessions').doc(activeQrSessionId).set(sessionMeta);
-    } catch(e){ console.error('Cloud QR session error', e); }
+      await firebaseDb.collection('qrcode').doc(activeQrSessionId).set(qrNodeData, { merge: true });
+      console.log(`[qr_flow] Database node updated: qrcode -> ${activeQrSessionId} (Generator Lat: ${teacherLat}, Lng: ${teacherLng})`);
+    } catch(e){ console.error('[qr_flow] Cloud QR session error', e); }
   }
 
   const baseUrl = getAppBaseUrl();
