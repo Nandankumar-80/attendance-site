@@ -129,9 +129,6 @@ async function handleAuthSubmit(){
   if(errEl) errEl.textContent = '';
 
   console.log(`[auth_flow] Form submission started | Mode: ${authMode} | Email: ${email}`);
-  if(typeof sendVercelLog === 'function'){
-    sendVercelLog({ flow: 'auth', action: authMode, email: email });
-  }
 
   if(!email){
     console.warn('[auth_flow] Auth submission failed: Missing email address.');

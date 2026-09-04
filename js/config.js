@@ -40,13 +40,3 @@ function getAppBaseUrl(){
 function sanitizeKey(key){
   return key.replace(/[^a-zA-Z0-9_]/g, '_');
 }
-
-function sendVercelLog(payload){
-  try {
-    fetch('/api/log', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    }).catch(e => {});
-  } catch(e){}
-}
