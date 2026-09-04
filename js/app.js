@@ -17,6 +17,7 @@ function toggleTheme(){
 initTheme();
 
 window.addEventListener('DOMContentLoaded', async () => {
+  console.log('[auth_flow] App initialized. Checking session status...');
   const isPortal = await checkStudentPortalParams();
   if(!isPortal){
     let savedUser = null;
@@ -26,9 +27,11 @@ window.addEventListener('DOMContentLoaded', async () => {
     } catch(e){}
 
     if(savedUser && savedUser.email){
+      console.log('[auth_flow] Active session restored for:', savedUser.email);
       currentUser = savedUser;
       await enterApp();
     } else {
+      console.log('[auth_flow] No active session found. Displaying auth screen.');
       const authScr = document.getElementById('authScreen');
       if(authScr) authScr.style.display = 'flex';
     }

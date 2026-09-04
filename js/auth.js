@@ -10,6 +10,7 @@ function toggleAuthMode(targetMode){
   } else {
     authMode = authMode === 'login' ? 'signup' : 'login';
   }
+  console.log('[auth_flow] Auth mode switched to:', authMode);
 
   const errEl = document.getElementById('authError');
   if(errEl) errEl.textContent = '';
@@ -63,6 +64,7 @@ async function syncUserProfileToFirebase(userProfile){
 
   if(window.firebaseDb){
     try {
+      console.log('[auth_flow] Syncing user profile to Firebase for:', userProfile.email);
       await window.firebaseDb.collection('users').doc(key).set({
         name: userProfile.name,
         email: userProfile.email,
@@ -72,18 +74,20 @@ async function syncUserProfileToFirebase(userProfile){
         updatedAt: Date.now()
       }, { merge: true });
     } catch(e) {
-      console.log('Firebase users collection sync note:', e);
+      console.log('[auth_flow] Firebase users collection sync note:', e);
     }
   }
 }
 
 async function handleGoogleSignIn(){
   if(!window.firebase || !firebase.auth){
+    console.warn('[auth_flow] Google Sign-In failed: Firebase Auth not ready.');
     toast('Firebase Auth loading... Please wait.');
     return;
   }
   const provider = new firebase.auth.GoogleAuthProvider();
   try {
+    console.log('[auth_flow] Initiating Google Sign-In popup...');
     const result = await firebase.auth().signInWithPopup(provider);
     const user = result.user;
     if(user && user.email){
@@ -95,17 +99,21 @@ async function handleGoogleSignIn(){
       
       const existing = await storageGet('user:' + email);
       if(!existing){
+        console.log('[auth_flow] First-time Google Sign-In. Creating user storage record for:', email);
         await storageSet('user:' + email, JSON.stringify({ name, email, designation, verified: true }));
         await storageSet('data:' + email, JSON.stringify({ groups: [] }));
+      } else {
+        console.log('[auth_flow] Existing user found for Google Sign-In:', email);
       }
 
       await syncUserProfileToFirebase({ name, email, designation, authProvider: 'google' });
       
+      console.log('[auth_flow] Google Sign-In successfully completed for:', email);
       toast(`🎉 Welcome, ${name.split(' ')[0]}!`);
       enterApp();
     }
   } catch(e) {
-    console.error('Google Sign-In Error:', e);
+    console.error('[auth_flow] Google Sign-In Error:', e);
     if(e.code === 'auth/popup-closed-by-user'){
       toast('Google Sign-In canceled.');
     } else {
@@ -120,15 +128,23 @@ async function handleAuthSubmit(){
   const errEl = document.getElementById('authError');
   if(errEl) errEl.textContent = '';
 
-  if(!email){ if(errEl) errEl.textContent = 'Please enter your email address.'; return; }
+  console.log(`[auth_flow] Form submission started | Mode: ${authMode} | Email: ${email}`);
+
+  if(!email){
+    console.warn('[auth_flow] Auth submission failed: Missing email address.');
+    if(errEl) errEl.textContent = 'Please enter your email address.';
+    return;
+  }
 
   if(!isValidEmail(email)){
+    console.warn('[auth_flow] Auth submission failed: Invalid email format:', email);
     if(errEl) errEl.textContent = 'Please enter a valid email address (e.g. user@example.com).';
     return;
   }
 
   if(authMode === 'forgot'){
     // FORGOT PASSWORD FLOW
+    console.log('[auth_flow] Executing password reset request for:', email);
     let raw = null;
     try { raw = await storageGet('user:' + email); } catch(e){}
     
@@ -143,6 +159,7 @@ async function handleAuthSubmit(){
     }
 
     if(!raw){
+      console.warn('[auth_flow] Password reset failed: No account found for email:', email);
       if(errEl) errEl.textContent = 'No account found with this email. Please check your email or create an account.';
       return;
     }
@@ -152,7 +169,10 @@ async function handleAuthSubmit(){
 
     // Trigger Firebase Google password reset mailer
     if(window.firebase && window.firebase.auth){
-      try { firebase.auth().sendPasswordResetEmail(email).catch(e=>{}); } catch(e){}
+      try {
+        console.log('[auth_flow] Sending Firebase password reset email to:', email);
+        firebase.auth().sendPasswordResetEmail(email).catch(e=>{});
+      } catch(e){}
     }
 
     openResetPasswordModal();
@@ -160,7 +180,9 @@ async function handleAuthSubmit(){
 
   } else if(authMode === 'signup'){
     // SIGNUP FLOW
+    console.log('[auth_flow] Executing signup flow for:', email);
     if(!password || password.length < 6){
+      console.warn('[auth_flow] Signup failed: Password must be at least 6 characters.');
       if(errEl) errEl.textContent = 'Password must be at least 6 characters long.';
       return;
     }
@@ -169,12 +191,14 @@ async function handleAuthSubmit(){
     const designation = document.getElementById('signupDesignation')?.value || 'Assistant Professor';
     
     if(!name || name.length < 2){
+      console.warn('[auth_flow] Signup failed: Name must be at least 2 characters.');
       if(errEl) errEl.textContent = 'Please enter a valid full name (at least 2 characters).';
       return;
     }
 
     const existing = await storageGet('user:' + email);
     if(existing){
+      console.warn('[auth_flow] Signup failed: Account already exists for:', email);
       if(errEl) errEl.textContent = 'An account with this email address already exists. Please log in instead.';
       return;
     }
@@ -194,18 +218,33 @@ async function handleAuthSubmit(){
     await syncUserProfileToFirebase({ name, email, designation, authProvider: 'email_password' });
 
     currentUser = { name, email, designation };
+    console.log('[auth_flow] Signup completed successfully for:', email);
     toast(`🎉 Account created successfully — Welcome to Attendo, ${name.split(' ')[0]}!`);
     enterApp();
 
   } else {
     // LOGIN FLOW
-    if(!password){ if(errEl) errEl.textContent = 'Please enter your password.'; return; }
+    console.log('[auth_flow] Executing login flow for:', email);
+    if(!password){
+      console.warn('[auth_flow] Login failed: Missing password.');
+      if(errEl) errEl.textContent = 'Please enter your password.';
+      return;
+    }
 
     const raw = await storageGet('user:' + email);
-    if(!raw){ if(errEl) errEl.textContent = 'No account found with this email. Please check your email or create an account.'; return; }
+    if(!raw){
+      console.warn('[auth_flow] Login failed: No account found for email:', email);
+      if(errEl) errEl.textContent = 'No account found with this email. Please check your email or create an account.';
+      return;
+    }
     const user = JSON.parse(raw);
-    if(user.password !== password){ if(errEl) errEl.textContent = 'Incorrect password. Please try again.'; return; }
+    if(user.password !== password){
+      console.warn('[auth_flow] Login failed: Incorrect password for email:', email);
+      if(errEl) errEl.textContent = 'Incorrect password. Please try again.';
+      return;
+    }
     currentUser = { name: user.name, email: user.email, designation: user.designation || 'Assistant Professor' };
+    console.log('[auth_flow] Login completed successfully for:', email);
     toast('Welcome back, ' + user.name.split(' ')[0] + '!');
     enterApp();
   }
@@ -213,6 +252,7 @@ async function handleAuthSubmit(){
 
 function openResetPasswordModal(){
   if(!pendingResetUser) return;
+  console.log('[auth_flow] Reset password modal opened for:', pendingResetUser.email);
   const backdrop = document.getElementById('resetPasswordModalBackdrop');
   if(backdrop){
     backdrop.style.cssText = "position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(5,5,10,0.85);display:flex !important;align-items:center;justify-content:center;z-index:999999;padding:20px;backdrop-filter:blur(4px);";
@@ -246,12 +286,16 @@ async function saveNewPassword(){
   const errEl = document.getElementById('resetPasswordError');
   if(errEl) errEl.textContent = '';
 
+  console.log('[auth_flow] Saving new password for:', pendingResetUser.user.email);
+
   if(!newPass || newPass.length < 6){
+    console.warn('[auth_flow] Save new password failed: Password must be at least 6 characters.');
     if(errEl) errEl.textContent = 'Password must be at least 6 characters long.';
     return;
   }
 
   if(newPass !== confirmPass){
+    console.warn('[auth_flow] Save new password failed: Passwords do not match.');
     if(errEl) errEl.textContent = 'Passwords do not match. Please check and try again.';
     return;
   }
@@ -268,11 +312,13 @@ async function saveNewPassword(){
   closeResetPasswordModal();
   pendingResetUser = null;
 
+  console.log('[auth_flow] Password reset completed successfully for:', user.email);
   toast(`🎉 Password updated successfully! Welcome back, ${user.name.split(' ')[0]}!`);
   enterApp();
 }
 
 function logout(){
+  console.log('[auth_flow] User logging out:', currentUser?.email);
   currentUser = null;
   appData = { groups: [] };
   try { window.localStorage.removeItem('attendo_session_user'); } catch(e){}
@@ -285,6 +331,7 @@ function logout(){
 
 async function enterApp(){
   try {
+    console.log('[auth_flow] Entering application for user:', currentUser?.email);
     const raw = await storageGet('data:' + currentUser.email);
     appData = raw ? JSON.parse(raw) : { groups: [] };
     
@@ -295,9 +342,10 @@ async function enterApp(){
     renderUserChip();
     goToDashboard();
     
+    console.log('[auth_flow] Application loaded successfully for:', currentUser?.email);
     try { generateSmartNotifications(); } catch(e){ console.error('notif gen error', e); }
   } catch(e) {
-    console.error('enterApp error', e);
+    console.error('[auth_flow] enterApp error:', e);
     goToDashboard();
   }
 }
