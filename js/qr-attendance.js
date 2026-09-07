@@ -3,9 +3,66 @@
 ============================================================ */
 let activeQrSessionId = null;
 let qrTimerInterval = null;
+let qrRotateInterval = null;
 let qrLiveUnsub = null;
 let qrMarkedStudentIds = new Set();
 let qrSessionActive = false;
+
+function generateQrTimeToken(sessionId, slot){
+  const str = sessionId + '_' + slot;
+  let hash = 0;
+  for(let i = 0; i < str.length; i++){
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash).toString(36);
+}
+
+function updateDynamicQrDisplay(teacherLat, teacherLng){
+  const baseUrl = getAppBaseUrl();
+  const g = getGroup();
+  if(!g || !activeQrSessionId) return;
+
+  const currentSlot = Math.floor(Date.now() / 10000); // 10-second time slots
+  const token = generateQrTimeToken(activeQrSessionId, currentSlot);
+
+  let studentLink = `${baseUrl}?qrSession=${activeQrSessionId}&email=${encodeURIComponent(currentUser ? currentUser.email : '')}&gid=${g.id}&ts=${currentSlot}&tkn=${token}`;
+  if(teacherLat && teacherLng){
+    studentLink += `&tlat=${teacherLat}&tlng=${teacherLng}`;
+  }
+
+  const qrContainer = document.getElementById('qrCanvasContainer');
+  if(qrContainer){
+    qrContainer.innerHTML = '';
+    try {
+      if(typeof qrcode === 'function') {
+        const qr = qrcode(0, 'M');
+        qr.addData(studentLink);
+        qr.make();
+        qrContainer.innerHTML = qr.createImgTag(5, 10);
+      } else if(window.QRCode){
+        new QRCode(qrContainer, { text: studentLink, width: 200, height: 200 });
+      } else {
+        qrContainer.innerHTML = `<div style="padding:10px;font-size:12px;word-break:break-all;color:#111"><a href="${studentLink}" target="_blank">${studentLink}</a></div>`;
+      }
+    } catch(err) {
+      try {
+        const qr = qrcode(10, 'M');
+        qr.addData(studentLink);
+        qr.make();
+        qrContainer.innerHTML = qr.createImgTag(4, 8);
+      } catch(err2) {
+        qrContainer.innerHTML = `<div style="padding:10px;font-size:12px;word-break:break-all;color:#111"><a href="${studentLink}" target="_blank">${studentLink}</a></div>`;
+      }
+    }
+  }
+
+  const secLeftInSlot = 10 - (Math.floor(Date.now() / 1000) % 10);
+  const statusEl = document.getElementById('qrRotateStatus');
+  if(statusEl){
+    statusEl.innerHTML = `🔄 <b>Anti-Proxy Dynamic QR:</b> Refreshing in ${secLeftInSlot}s...`;
+  }
+}
 
 async function startQrAttendanceSession(){
   const g = getGroup();
@@ -22,7 +79,6 @@ async function startQrAttendanceSession(){
 
   let teacherLat = null;
   let teacherLng = null;
-
   let teacherAccuracy = null;
 
   // Pin-Point High-Accuracy Satellite GPS Engine for Teacher
@@ -100,38 +156,16 @@ async function startQrAttendanceSession(){
     } catch(e){ console.error('[qr_flow] Cloud QR session error', e); }
   }
 
-  const baseUrl = getAppBaseUrl();
-  let studentLink = `${baseUrl}?qrSession=${activeQrSessionId}&email=${encodeURIComponent(currentUser ? currentUser.email : '')}&gid=${g.id}`;
-  if(teacherLat && teacherLng){
-    studentLink += `&tlat=${teacherLat}&tlng=${teacherLng}`;
-  }
+  updateDynamicQrDisplay(teacherLat, teacherLng);
 
-  const qrContainer = document.getElementById('qrCanvasContainer');
-  if(qrContainer){
-    qrContainer.innerHTML = '';
-    try {
-      if(typeof qrcode === 'function') {
-        const qr = qrcode(0, 'M');
-        qr.addData(studentLink);
-        qr.make();
-        qrContainer.innerHTML = qr.createImgTag(5, 10);
-      } else if(window.QRCode){
-        new QRCode(qrContainer, { text: studentLink, width: 200, height: 200 });
-      } else {
-        qrContainer.innerHTML = `<div style="padding:10px;font-size:12px;word-break:break-all;color:#111"><a href="${studentLink}" target="_blank">${studentLink}</a></div>`;
-      }
-    } catch(err) {
-      console.log('QR retry with type number', err);
-      try {
-        const qr = qrcode(10, 'M');
-        qr.addData(studentLink);
-        qr.make();
-        qrContainer.innerHTML = qr.createImgTag(4, 8);
-      } catch(err2) {
-        qrContainer.innerHTML = `<div style="padding:10px;font-size:12px;word-break:break-all;color:#111"><a href="${studentLink}" target="_blank">${studentLink}</a></div>`;
-      }
+  clearInterval(qrRotateInterval);
+  qrRotateInterval = setInterval(() => {
+    if(!qrSessionActive){
+      clearInterval(qrRotateInterval);
+      return;
     }
-  }
+    updateDynamicQrDisplay(teacherLat, teacherLng);
+  }, 1000);
 
   if(document.getElementById('qrModalSubtitle')) {
     document.getElementById('qrModalSubtitle').textContent = `${groupInstitution(g)} • ${groupLabel(g)} • ${subjectStr}`;
@@ -167,6 +201,7 @@ function startQrCountdownTimer(secondsLeft){
     secondsLeft--;
     if(secondsLeft <= 0){
       clearInterval(qrTimerInterval);
+      clearInterval(qrRotateInterval);
       qrSessionActive = false;
       if(timerEl){
         timerEl.textContent = '00:00 (Expired)';
@@ -187,7 +222,6 @@ function listenLiveQrSubmissions(){
 
   if(!firebaseDb || !currentUser) return;
 
-  // 1. Direct Real-time QR Session Listener (Syncs Live Headcount AND saves to qrMarkedStudentIds!)
   if(activeQrSessionId){
     try {
       firebaseDb.collection('attendo_qr_sessions').doc(activeQrSessionId).onSnapshot(doc => {
@@ -206,7 +240,6 @@ function listenLiveQrSubmissions(){
     } catch(e){}
   }
 
-  // 2. Full Storage Document Snapshot Listener
   const docRef = firebaseDb.collection('attendo_storage').doc(sanitizeKey('data:' + currentUser.email));
   qrLiveUnsub = docRef.onSnapshot(doc => {
     if(doc && doc.exists && doc.data() && doc.data().value){
@@ -234,16 +267,18 @@ function shareQrToWhatsApp(){
   const g = getGroup();
   if(!g) return;
   const baseUrl = getAppBaseUrl();
-  const link = `${baseUrl}?qrSession=${activeQrSessionId}&email=${encodeURIComponent(currentUser ? currentUser.email : '')}&gid=${g.id}`;
+  const currentSlot = Math.floor(Date.now() / 10000);
+  const token = generateQrTimeToken(activeQrSessionId, currentSlot);
+  const link = `${baseUrl}?qrSession=${activeQrSessionId}&email=${encodeURIComponent(currentUser ? currentUser.email : '')}&gid=${g.id}&ts=${currentSlot}&tkn=${token}`;
   const dateStr = document.getElementById('attDate')?.value || '';
   const subjectStr = document.getElementById('attSubject')?.value.trim() || 'Class';
 
-  const msg = `📢 *Attendo 5-Minute Class Attendance Link*\n` +
+  const msg = `📢 *Attendo Live Class Attendance Link*\n` +
               `Institution: ${groupInstitution(g)}\n` +
               `Class: ${groupLabel(g)}\n` +
               `Subject: ${subjectStr}\n` +
               `Date: ${dateStr}\n\n` +
-              `👇 Click link below to mark your attendance (Valid for 5 mins):\n${link}`;
+              `👇 Click link below to mark your attendance (Valid for live session):\n${link}`;
 
   const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
   window.open(waUrl, '_blank');
@@ -251,6 +286,7 @@ function shareQrToWhatsApp(){
 
 function closeQrModal(){
   clearInterval(qrTimerInterval);
+  clearInterval(qrRotateInterval);
   qrSessionActive = false;
   if(qrLiveUnsub) qrLiveUnsub();
   document.getElementById('qrModalBackdrop').classList.remove('show');

@@ -148,6 +148,37 @@ async function openStudentPublicPortal(sessionId, email, gid){
 
     if(email) email = decodeURIComponent(email).trim().toLowerCase();
 
+    // Dynamic Anti-Proxy Token Expiration Check (~20-second grace window)
+    const tsParam = params.get('ts');
+    if(tsParam){
+      const scanSlot = parseInt(tsParam, 10);
+      const nowSlot = Math.floor(Date.now() / 10000);
+      const slotDiff = nowSlot - scanSlot;
+
+      // Block if scan timestamp is older than ~20 seconds (slotDiff > 2)
+      if(isNaN(scanSlot) || slotDiff < -1 || slotDiff > 2){
+        console.warn(`[qr_flow] Dynamic Anti-Proxy Token Expired. Slot diff: ${slotDiff}`);
+        if(subjDateEl) subjDateEl.textContent = `🚫 QR Code Token Expired`;
+        if(select) select.style.display = 'none';
+        if(btn) btn.style.display = 'none';
+        if(statusEl){
+          statusEl.style.display = 'block';
+          statusEl.style.background = 'rgba(239,68,68,0.15)';
+          statusEl.style.color = '#ef4444';
+          statusEl.style.border = '1px solid rgba(239,68,68,0.3)';
+          statusEl.style.padding = '18px';
+          statusEl.style.borderRadius = '12px';
+          statusEl.style.textAlign = 'center';
+          statusEl.innerHTML = `
+            <div style="font-size:36px;margin-bottom:6px">🚫</div>
+            <h3 style="margin:0 0 6px 0;font-size:16px;color:#ef4444">QR Code Token Expired!</h3>
+            <p style="margin:0;font-size:13px;line-height:1.5">You scanned an old or shared QR code.<br><span style="font-size:12px;color:var(--text-dim)">Please scan the <b>LIVE QR code</b> currently displayed on the teacher's screen.</span></p>
+          `;
+        }
+        return;
+      }
+    }
+
     // 1. Single Device Duplicate Submission Lock Check
     const alreadyMarked = localStorage.getItem('attendo_marked_' + sessionId);
     if(alreadyMarked){
@@ -634,6 +665,8 @@ function onCameraQrCodeScanned(scannedUrl){
     const gid = params.get('gid');
     const tlat = params.get('tlat');
     const tlng = params.get('tlng');
+    const ts = params.get('ts');
+    const tkn = params.get('tkn');
 
     if(qrSession){
       let newSearch = `?qrSession=${qrSession}`;
@@ -641,6 +674,8 @@ function onCameraQrCodeScanned(scannedUrl){
       if(gid) newSearch += `&gid=${gid}`;
       if(tlat) newSearch += `&tlat=${tlat}`;
       if(tlng) newSearch += `&tlng=${tlng}`;
+      if(ts) newSearch += `&ts=${ts}`;
+      if(tkn) newSearch += `&tkn=${tkn}`;
 
       window.history.pushState({}, '', newSearch);
       openStudentPublicPortal(qrSession, email, gid);
