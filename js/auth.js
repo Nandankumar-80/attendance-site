@@ -291,10 +291,6 @@ async function handleAuthSubmit(){
   }
 }
 
-/* ============================================================
-   EMAIL VERIFICATION MANAGEMENT & STATUS FUNCTIONS
-============================================================ */
-
 async function onAuthEmailInputChange(){
   const email = document.getElementById('authEmail')?.value.trim().toLowerCase();
   const inlineBtn = document.getElementById('verifyEmailInlineBtn');
@@ -321,11 +317,14 @@ async function onAuthEmailInputChange(){
     statusHint.style.display = 'block';
     if(raw){
       const u = JSON.parse(raw);
-      const isDemo = (await storageGet('verified_demo:' + email)) === 'true';
-      if(u.verified || u.emailVerified || isDemo){
-        statusHint.innerHTML = '<span style="color:var(--green)">✅ Email Verified</span>';
+      let isVerified = u.verified || u.emailVerified;
+      if(window.firebase && window.firebase.auth && window.firebase.auth().currentUser && window.firebase.auth().currentUser.email === email){
+        isVerified = window.firebase.auth().currentUser.emailVerified;
+      }
+      if(isVerified){
+        statusHint.innerHTML = '<span style="color:var(--green)">✅ Email Verified (Firebase Verified)</span>';
       } else {
-        statusHint.innerHTML = '<span style="color:var(--yellow)">⌛ Email Unverified — Verification required before login</span>';
+        statusHint.innerHTML = '<span style="color:var(--yellow)">⌛ Email Unverified — Firebase verification required before login</span>';
       }
     } else {
       statusHint.innerHTML = '<span style="color:var(--cyan)">ℹ️ New Email — Verification link will be sent upon account creation</span>';
@@ -345,19 +344,25 @@ async function triggerEmailVerification(targetEmail){
   }
 
   pendingVerificationEmail = email;
-  console.log('[auth_flow] Triggering email verification for:', email);
+  console.log('[auth_flow] Triggering Firebase email verification for:', email);
 
   if(window.firebase && window.firebase.auth){
     try {
-      const actionCodeSettings = {
-        url: window.location.origin + window.location.pathname + '?verifyEmail=' + encodeURIComponent(email),
-        handleCodeInApp: true
-      };
-      window.firebase.auth().sendSignInLinkToEmail(email, actionCodeSettings).catch(e=>{
-        console.log('[auth_flow] Firebase sendSignInLinkToEmail note:', e);
-      });
+      const user = window.firebase.auth().currentUser;
+      if(user && user.email === email){
+        await user.sendEmailVerification();
+        console.log('[auth_flow] Firebase currentUser.sendEmailVerification() sent to:', email);
+      } else {
+        const actionCodeSettings = {
+          url: window.location.origin + window.location.pathname + '?verifyEmail=' + encodeURIComponent(email),
+          handleCodeInApp: true
+        };
+        await window.firebase.auth().sendSignInLinkToEmail(email, actionCodeSettings).catch(e=>{
+          console.log('[auth_flow] Firebase sendSignInLinkToEmail note:', e);
+        });
+      }
     } catch(e){
-      console.log('[auth_flow] Firebase Auth verification note:', e);
+      console.log('[auth_flow] Firebase Auth verification error:', e);
     }
   }
 
@@ -367,8 +372,6 @@ async function triggerEmailVerification(targetEmail){
     u.emailVerified = false;
     u.verificationSentAt = Date.now();
     await storageSet('user:' + email, JSON.stringify(u));
-  } else {
-    await storageSet('pending_verify:' + email, JSON.stringify({ email, sentAt: Date.now() }));
   }
 
   openEmailVerificationModal(email);
@@ -405,28 +408,33 @@ function closeEmailVerificationModal(){
 async function checkUserEmailVerificationStatus(){
   if(!pendingVerificationEmail) return;
   const email = pendingVerificationEmail;
-  console.log('[auth_flow] Checking email verification status for:', email);
+  console.log('[auth_flow] Checking authoritative Firebase verification status for:', email);
 
   let verified = false;
-  const isDemo = (await storageGet('verified_demo:' + email)) === 'true';
-  if(isDemo) verified = true;
-
-  let raw = await storageGet('user:' + email);
-  if(raw){
-    const u = JSON.parse(raw);
-    if(u.verified || u.emailVerified) verified = true;
-  }
 
   if(window.firebase && window.firebase.auth && window.firebase.auth().currentUser){
-    await window.firebase.auth().currentUser.reload().catch(e=>{});
-    if(window.firebase.auth().currentUser.emailVerified) verified = true;
+    try {
+      await window.firebase.auth().currentUser.reload();
+      verified = window.firebase.auth().currentUser.emailVerified;
+      console.log('[auth_flow] Firebase currentUser.reload() emailVerified:', verified);
+    } catch(e){
+      console.log('[auth_flow] Firebase reload note:', e);
+    }
   }
 
   const stateEl = document.getElementById('emailVerifyStateDisplay');
   const errEl = document.getElementById('emailVerifyModalError');
 
   if(verified){
-    if(stateEl) stateEl.innerHTML = `<span style="color:var(--green)">✅ Email Verified! Account Active.</span>`;
+    let raw = await storageGet('user:' + email);
+    let u = raw ? JSON.parse(raw) : { email: email };
+    u.verified = true;
+    u.emailVerified = true;
+    u.emailVerifiedAt = Date.now();
+    await storageSet('user:' + email, JSON.stringify(u));
+    await syncUserProfileToFirebase({ email: email, emailVerified: true, emailVerifiedAt: Date.now() });
+
+    if(stateEl) stateEl.innerHTML = `<span style="color:var(--green)">✅ Email Verified via Firebase Auth!</span>`;
     if(errEl) errEl.textContent = '';
     toast('🎉 Email successfully verified!');
     setTimeout(() => {
@@ -434,36 +442,9 @@ async function checkUserEmailVerificationStatus(){
       onAuthEmailInputChange();
     }, 1000);
   } else {
-    if(stateEl) stateEl.innerHTML = `<span style="color:var(--yellow)">⌛ Still Pending... Please check your inbox or click Instant Demo Verify.</span>`;
-    if(errEl) errEl.textContent = 'Verification link not clicked yet. You can click Instant Demo Verify for instant testing.';
+    if(stateEl) stateEl.innerHTML = `<span style="color:var(--yellow)">⌛ Verification Pending... Please click the link in your email.</span>`;
+    if(errEl) errEl.textContent = 'Verification not confirmed by Firebase Auth yet. Please check your inbox/spam folder and click the link.';
   }
-}
-
-async function instantDemoVerifyEmail(){
-  if(!pendingVerificationEmail) return;
-  const email = pendingVerificationEmail;
-  console.log('[auth_flow] Instant demo verifying email for:', email);
-
-  await storageSet('verified_demo:' + email, 'true');
-
-  let raw = await storageGet('user:' + email);
-  if(raw){
-    const u = JSON.parse(raw);
-    u.verified = true;
-    u.emailVerified = true;
-    await storageSet('user:' + email, JSON.stringify(u));
-  }
-
-  await syncUserProfileToFirebase({ email: email, emailVerified: true });
-
-  const stateEl = document.getElementById('emailVerifyStateDisplay');
-  if(stateEl) stateEl.innerHTML = `<span style="color:var(--green)">⚡ Verified via Demo Mode!</span>`;
-
-  toast('🎉 Email verified! You can now log in.');
-  setTimeout(() => {
-    closeEmailVerificationModal();
-    onAuthEmailInputChange();
-  }, 800);
 }
 
 async function checkEmailVerificationUrlParams(){
@@ -485,15 +466,15 @@ async function checkEmailVerificationUrlParams(){
 
     if(verifyEmail && isValidEmail(verifyEmail)){
       console.log('[auth_flow] URL verification parameter detected for:', verifyEmail);
-      await storageSet('verified_demo:' + verifyEmail, 'true');
       let raw = await storageGet('user:' + verifyEmail);
       if(raw){
         const u = JSON.parse(raw);
         u.verified = true;
         u.emailVerified = true;
+        u.emailVerifiedAt = Date.now();
         await storageSet('user:' + verifyEmail, JSON.stringify(u));
       }
-      await syncUserProfileToFirebase({ email: verifyEmail, emailVerified: true });
+      await syncUserProfileToFirebase({ email: verifyEmail, emailVerified: true, emailVerifiedAt: Date.now() });
       toast(`🎉 Email verified for ${verifyEmail}! Please log in.`);
       window.history.replaceState({}, document.title, window.location.pathname);
     }

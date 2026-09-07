@@ -753,6 +753,23 @@ async function submitPublicStudentAttendance(){
     // 1. Direct Public Write to attendo_qr_sessions for instant live headcount increment on teacher screen
     if(firebaseDb && publicPortalData.sessionId){
       const evalRecord = {
+        auth: {
+          uid: (window.firebase && window.firebase.auth && window.firebase.auth().currentUser) ? window.firebase.auth().currentUser.uid : null,
+          email: publicPortalData.email || null,
+          emailVerified: true
+        },
+        identity: {
+          studentId: studentId,
+          name: sName,
+          rollNo: sRoll
+        },
+        session: {
+          sessionId: publicPortalData.sessionId,
+          qrVerified: fusionResult.qrValid,
+          pinVerified: fusionResult.pinValid,
+          deviceSessionVerified: fusionResult.deviceValid,
+          gpsVerified: fusionResult.gpsValid
+        },
         studentId: studentId,
         name: sName,
         rollNo: sRoll,
