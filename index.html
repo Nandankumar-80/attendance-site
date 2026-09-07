@@ -131,6 +131,11 @@
         <select id="portalStudentSelect" style="width:100%;padding:12px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:8px;font-size:14px"></select>
       </div>
 
+      <div class="field" id="portalPinField" style="margin-top:12px;display:none">
+        <label style="font-weight:600">Enter 4-Digit Classroom Security PIN:</label>
+        <input type="text" id="portalPinInput" maxlength="4" placeholder="e.g. 4892" style="width:100%;padding:12px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:8px;font-size:18px;font-weight:800;letter-spacing:4px;text-align:center;font-family:'JetBrains Mono',monospace" />
+      </div>
+
       <button class="btn btn-primary btn-block" id="portalSubmitBtn" onclick="submitPublicStudentAttendance()" style="padding:14px;font-size:15px;margin-top:14px">
         ✅ Mark Me Present
       </button>
@@ -489,6 +494,15 @@
       <button class="btn btn-ghost btn-sm" onclick="shareQrToWhatsApp()" style="color:#25D366;border-color:rgba(37,211,102,0.4)">
         💬 Share Link to WhatsApp
       </button>
+    </div>
+
+    <!-- Live Security PIN Display -->
+    <div style="background:rgba(99,102,241,0.12);border:1px dashed var(--violet2);border-radius:12px;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div>
+        <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em">🔒 Classroom Security PIN</div>
+        <div style="font-size:11px;color:var(--text-dim)">Students must enter this PIN to submit</div>
+      </div>
+      <div id="qrLivePinDisplay" style="font-size:28px;font-weight:900;letter-spacing:6px;font-family:'JetBrains Mono',monospace;color:var(--cyan)">----</div>
     </div>
 
     <!-- Large QR Code Display -->

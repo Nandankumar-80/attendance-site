@@ -6,6 +6,20 @@ let publicPortalData = null;
 let prefetchedStudentCoords = null;
 let prefetchedAt = 0;
 
+function getAttendoDeviceId(){
+  let devId = null;
+  try {
+    devId = localStorage.getItem('attendo_device_id');
+    if(!devId){
+      devId = 'dev_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9);
+      localStorage.setItem('attendo_device_id', devId);
+    }
+  } catch(e){
+    devId = 'dev_temp_' + Date.now();
+  }
+  return devId;
+}
+
 function calculateHaversineDistanceMeters(lat1, lon1, lat2, lon2) {
   const R = 6371000; // Earth radius in meters
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -237,6 +251,38 @@ async function openStudentPublicPortal(sessionId, email, gid){
           if(!gid && sessionData.gid) gid = sessionData.gid;
           if(isNaN(tlat) && sessionData.teacherLat) tlat = parseFloat(sessionData.teacherLat);
           if(isNaN(tlng) && sessionData.teacherLng) tlng = parseFloat(sessionData.teacherLng);
+          if(sessionData.pin) {
+            if(publicPortalData) publicPortalData.pin = sessionData.pin;
+            const pinField = document.getElementById('portalPinField');
+            if(pinField) pinField.style.display = 'block';
+          }
+
+          // Strict Single Device Lock Check from Cloud DB
+          const devId = getAttendoDeviceId();
+          if(sessionData.devices && sessionData.devices[devId]){
+            const prevReg = sessionData.devices[devId];
+            if(instEl) instEl.textContent = 'Device Locked';
+            if(subjDateEl) subjDateEl.textContent = '📱 Phone Already Used for Attendance';
+            if(select) select.style.display = 'none';
+            if(btn) btn.style.display = 'none';
+            const pinField = document.getElementById('portalPinField');
+            if(pinField) pinField.style.display = 'none';
+            if(statusEl){
+              statusEl.style.display = 'block';
+              statusEl.style.background = 'rgba(239,68,68,0.15)';
+              statusEl.style.color = '#ef4444';
+              statusEl.style.border = '1px solid rgba(239,68,68,0.3)';
+              statusEl.style.padding = '18px';
+              statusEl.style.borderRadius = '12px';
+              statusEl.style.textAlign = 'center';
+              statusEl.innerHTML = `
+                <div style="font-size:36px;margin-bottom:6px">📱</div>
+                <h3 style="margin:0 0 6px 0;font-size:16px;color:#ef4444">Phone Already Used!</h3>
+                <p style="margin:0;font-size:13px;line-height:1.5">This phone has already registered attendance for <b>${prevReg.name || 'another student'}</b> in this session.<br><span style="font-size:12px;color:var(--text-dim)">Strict 1 Phone = 1 Student rule is enforced to prevent proxy attendance.</span></p>
+              `;
+            }
+            return;
+          }
 
           // Check if session was manually closed by teacher
           if(sessionData.isClosed === true){
@@ -310,6 +356,32 @@ async function submitPublicStudentAttendance(){
       statusEl.textContent = 'Please select your Roll Number / Name first.';
     }
     return;
+  }
+
+  // Check 4-Digit Security PIN Validation
+  if(publicPortalData && publicPortalData.pin){
+    const userPin = document.getElementById('portalPinInput')?.value?.trim();
+    if(userPin !== publicPortalData.pin){
+      if(btn){
+        btn.disabled = false;
+        btn.textContent = '✅ Mark Me Present';
+      }
+      if(statusEl){
+        statusEl.style.display = 'block';
+        statusEl.style.background = 'rgba(239,68,68,0.15)';
+        statusEl.style.color = '#ef4444';
+        statusEl.style.border = '1px solid rgba(239,68,68,0.3)';
+        statusEl.style.padding = '16px';
+        statusEl.style.borderRadius = '12px';
+        statusEl.style.textAlign = 'center';
+        statusEl.innerHTML = `
+          <div style="font-size:36px;margin-bottom:6px">🔒</div>
+          <h3 style="margin:0 0 6px 0;font-size:16px;color:#ef4444">Incorrect Security PIN!</h3>
+          <p style="margin:0;font-size:13px;line-height:1.5">Please check and enter the <b>4-digit Security PIN</b> displayed on the classroom screen.</p>
+        `;
+      }
+      return;
+    }
   }
 
   // Instant Reset UI on Click
@@ -542,15 +614,18 @@ async function submitPublicStudentAttendance(){
       `;
     }
 
+    const devId = getAttendoDeviceId();
+
     // 1. Direct Public Write to attendo_qr_sessions for instant live headcount increment on teacher screen
     if(firebaseDb && publicPortalData.sessionId){
       firebaseDb.collection('attendo_qr_sessions').doc(publicPortalData.sessionId).set({
         records: { [studentId]: true },
+        devices: { [devId]: { studentId: studentId, name: sName, rollNo: sRoll, time: Date.now() } },
         lastStudentMarked: sName,
         lastMarkedAt: Date.now()
       }, { merge: true }).catch(e=>{});
 
-      // 2. Main Database Node Write: qrcode -> id -> scanners
+      // 2. Main Database Node Write: qrcode -> id -> scanners & devices
       const scannerRecord = {
         studentId: studentId,
         name: sName,
@@ -558,15 +633,19 @@ async function submitPublicStudentAttendance(){
         lat: sLat,
         lng: sLng,
         accuracy: sAccuracy,
+        deviceId: devId,
         scannedAt: Date.now()
       };
 
       firebaseDb.collection('qrcode').doc(publicPortalData.sessionId).set({
         scanners: {
           [studentId]: scannerRecord
+        },
+        devices: {
+          [devId]: { studentId: studentId, name: sName, rollNo: sRoll, time: Date.now() }
         }
       }, { merge: true }).then(() => {
-        console.log(`[qr_flow] Database node updated: qrcode -> ${publicPortalData.sessionId} -> scanners -> ${studentId} (Scanner Lat: ${sLat}, Lng: ${sLng})`);
+        console.log(`[qr_flow] Database node updated: qrcode -> ${publicPortalData.sessionId} -> scanners -> ${studentId} (Device: ${devId})`);
       }).catch(e => console.error('[qr_flow] Error updating qrcode node scanner details:', e));
     }
 
