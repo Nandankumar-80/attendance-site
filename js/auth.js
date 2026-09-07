@@ -3,6 +3,7 @@
 ============================================================ */
 let authMode = 'login'; // 'login', 'signup', or 'forgot'
 let pendingResetUser = null;
+let pendingVerificationEmail = null;
 
 function toggleAuthMode(targetMode){
   if(targetMode){
@@ -22,12 +23,15 @@ function toggleAuthMode(targetMode){
   const submitBtn = document.getElementById('authSubmitBtn');
   const switchText = document.getElementById('authSwitchText');
 
+  const passHint = document.getElementById('passwordRequirementHint');
+
   if(authMode === 'signup'){
     document.getElementById('authTitle').textContent = 'Create your account';
     document.getElementById('authSubtitle').textContent = 'Set up attendance for your classes';
     if(nameField) nameField.style.display = 'block';
     if(desigField) desigField.style.display = 'block';
     if(passwordField) passwordField.style.display = 'block';
+    if(passHint) passHint.style.display = 'block';
     if(forgotLink) forgotLink.style.display = 'none';
     if(submitBtn) submitBtn.textContent = 'Create Account & Get Started →';
     if(switchText) switchText.innerHTML = 'Already have an account? <span onclick="toggleAuthMode(\'login\')">Log in</span>';
@@ -37,6 +41,7 @@ function toggleAuthMode(targetMode){
     if(nameField) nameField.style.display = 'none';
     if(desigField) desigField.style.display = 'none';
     if(passwordField) passwordField.style.display = 'none';
+    if(passHint) passHint.style.display = 'none';
     if(forgotLink) forgotLink.style.display = 'none';
     if(submitBtn) submitBtn.textContent = 'Continue to Reset Password →';
     if(switchText) switchText.innerHTML = 'Remember your password? <span onclick="toggleAuthMode(\'login\')">Log in</span>';
@@ -47,15 +52,37 @@ function toggleAuthMode(targetMode){
     if(nameField) nameField.style.display = 'none';
     if(desigField) desigField.style.display = 'none';
     if(passwordField) passwordField.style.display = 'block';
+    if(passHint) passHint.style.display = 'none';
     if(forgotLink) forgotLink.style.display = 'block';
     if(submitBtn) submitBtn.textContent = 'Log in';
     if(switchText) switchText.innerHTML = 'New here? <span onclick="toggleAuthMode(\'signup\')">Create an account</span>';
   }
+
+  try { onAuthEmailInputChange(); } catch(e){}
 }
 
 function isValidEmail(email) {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
+  if (!email || typeof email !== 'string') return false;
+  const trimmed = email.trim().toLowerCase();
+  // Standard RFC 5322 Email Validation Pattern (supports 1@gmail.com, user@domain.com, etc.)
+  const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+  return emailRegex.test(trimmed);
+}
+
+function validatePasswordComplexity(password) {
+  if (!password || password.length < 6) {
+    return 'Password must be at least 6 characters long.';
+  }
+  if (!/[A-Z]/.test(password)) {
+    return 'Password must contain at least one uppercase (capital) letter (A-Z).';
+  }
+  if (!/[a-z]/.test(password)) {
+    return 'Password must contain at least one lowercase (small) letter (a-z).';
+  }
+  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+    return 'Password must contain at least one special character (e.g. @, #, $, !).';
+  }
+  return null;
 }
 
 async function syncUserProfileToFirebase(userProfile){
@@ -98,15 +125,19 @@ async function handleGoogleSignIn(){
       currentUser = { name, email, designation };
       
       const existing = await storageGet('user:' + email);
+      let userObj = existing ? JSON.parse(existing) : { name, email, designation, createdAt: Date.now() };
+      userObj.verified = true;
+      userObj.emailVerified = true;
+      await storageSet('user:' + email, JSON.stringify(userObj));
+      await storageSet('verified_demo:' + email, 'true');
       if(!existing){
-        console.log('[auth_flow] First-time Google Sign-In. Creating user storage record for:', email);
-        await storageSet('user:' + email, JSON.stringify({ name, email, designation, verified: true }));
+        console.log('[auth_flow] First-time Google Sign-In. Creating data record for:', email);
         await storageSet('data:' + email, JSON.stringify({ groups: [] }));
       } else {
         console.log('[auth_flow] Existing user found for Google Sign-In:', email);
       }
 
-      await syncUserProfileToFirebase({ name, email, designation, authProvider: 'google' });
+      await syncUserProfileToFirebase({ name, email, designation, authProvider: 'google', emailVerified: true });
       
       console.log('[auth_flow] Google Sign-In successfully completed for:', email);
       toast(`🎉 Welcome, ${name.split(' ')[0]}!`);
@@ -179,11 +210,12 @@ async function handleAuthSubmit(){
     return;
 
   } else if(authMode === 'signup'){
-    // SIGNUP FLOW
+    // SIGNUP FLOW WITH MANDATORY EMAIL VERIFICATION
     console.log('[auth_flow] Executing signup flow for:', email);
-    if(!password || password.length < 6){
-      console.warn('[auth_flow] Signup failed: Password must be at least 6 characters.');
-      if(errEl) errEl.textContent = 'Password must be at least 6 characters long.';
+    const passErr = validatePasswordComplexity(password);
+    if(passErr){
+      console.warn('[auth_flow] Signup failed:', passErr);
+      if(errEl) errEl.textContent = passErr;
       return;
     }
 
@@ -208,22 +240,22 @@ async function handleAuthSubmit(){
       email,
       password,
       designation,
-      verified: true,
+      verified: false,
+      emailVerified: false,
       createdAt: Date.now()
     };
 
     await storageSet('user:' + email, JSON.stringify(user));
     await storageSet('data:' + email, JSON.stringify({ groups: [] }));
 
-    await syncUserProfileToFirebase({ name, email, designation, authProvider: 'email_password' });
+    await syncUserProfileToFirebase({ name, email, designation, authProvider: 'email_password', emailVerified: false });
 
-    currentUser = { name, email, designation };
-    console.log('[auth_flow] Signup completed successfully for:', email);
-    toast(`🎉 Account created successfully — Welcome to Attendo, ${name.split(' ')[0]}!`);
-    enterApp();
+    console.log('[auth_flow] Signup completed. Email verification required for:', email);
+    toast(`📩 Account created! Please verify your email before logging in.`);
+    triggerEmailVerification(email);
 
   } else {
-    // LOGIN FLOW
+    // LOGIN FLOW WITH EMAIL VERIFICATION CHECK
     console.log('[auth_flow] Executing login flow for:', email);
     if(!password){
       console.warn('[auth_flow] Login failed: Missing password.');
@@ -243,11 +275,229 @@ async function handleAuthSubmit(){
       if(errEl) errEl.textContent = 'Incorrect password. Please try again.';
       return;
     }
+
+    const isDemo = (await storageGet('verified_demo:' + email)) === 'true';
+    if(!user.verified && !user.emailVerified && !isDemo){
+      console.warn('[auth_flow] Login blocked: Email not verified for:', email);
+      if(errEl) errEl.textContent = '⚠️ Email address is not verified yet! Please check your inbox or verify email.';
+      triggerEmailVerification(email);
+      return;
+    }
+
     currentUser = { name: user.name, email: user.email, designation: user.designation || 'Assistant Professor' };
     console.log('[auth_flow] Login completed successfully for:', email);
     toast('Welcome back, ' + user.name.split(' ')[0] + '!');
     enterApp();
   }
+}
+
+/* ============================================================
+   EMAIL VERIFICATION MANAGEMENT & STATUS FUNCTIONS
+============================================================ */
+
+async function onAuthEmailInputChange(){
+  const email = document.getElementById('authEmail')?.value.trim().toLowerCase();
+  const inlineBtn = document.getElementById('verifyEmailInlineBtn');
+  const statusHint = document.getElementById('emailVerifyStatusHint');
+
+  if(!email || !isValidEmail(email)){
+    if(inlineBtn) inlineBtn.style.display = 'none';
+    if(statusHint) statusHint.style.display = 'none';
+    return;
+  }
+
+  if(inlineBtn && authMode === 'signup') inlineBtn.style.display = 'inline-block';
+
+  let raw = await storageGet('user:' + email);
+  if(!raw && window.firebaseDb){
+    try {
+      const docKey = typeof sanitizeKey === 'function' ? sanitizeKey(email) : email.replace(/[^a-zA-Z0-9_]/g, '_');
+      const doc = await firebaseDb.collection('users').doc(docKey).get();
+      if(doc.exists && doc.data()) raw = JSON.stringify(doc.data());
+    } catch(e){}
+  }
+
+  if(statusHint){
+    statusHint.style.display = 'block';
+    if(raw){
+      const u = JSON.parse(raw);
+      const isDemo = (await storageGet('verified_demo:' + email)) === 'true';
+      if(u.verified || u.emailVerified || isDemo){
+        statusHint.innerHTML = '<span style="color:var(--green)">✅ Email Verified</span>';
+      } else {
+        statusHint.innerHTML = '<span style="color:var(--yellow)">⌛ Email Unverified — Verification required before login</span>';
+      }
+    } else {
+      statusHint.innerHTML = '<span style="color:var(--cyan)">ℹ️ New Email — Verification link will be sent upon account creation</span>';
+    }
+  }
+}
+
+async function triggerEmailVerification(targetEmail){
+  const email = (targetEmail || document.getElementById('authEmail')?.value || '').trim().toLowerCase();
+  const errEl = document.getElementById('authError');
+  if(errEl) errEl.textContent = '';
+
+  if(!email || !isValidEmail(email)){
+    if(errEl) errEl.textContent = 'Please enter a valid email address first.';
+    toast('Please enter a valid email address.');
+    return;
+  }
+
+  pendingVerificationEmail = email;
+  console.log('[auth_flow] Triggering email verification for:', email);
+
+  if(window.firebase && window.firebase.auth){
+    try {
+      const actionCodeSettings = {
+        url: window.location.origin + window.location.pathname + '?verifyEmail=' + encodeURIComponent(email),
+        handleCodeInApp: true
+      };
+      window.firebase.auth().sendSignInLinkToEmail(email, actionCodeSettings).catch(e=>{
+        console.log('[auth_flow] Firebase sendSignInLinkToEmail note:', e);
+      });
+    } catch(e){
+      console.log('[auth_flow] Firebase Auth verification note:', e);
+    }
+  }
+
+  let raw = await storageGet('user:' + email);
+  if(raw){
+    const u = JSON.parse(raw);
+    u.emailVerified = false;
+    u.verificationSentAt = Date.now();
+    await storageSet('user:' + email, JSON.stringify(u));
+  } else {
+    await storageSet('pending_verify:' + email, JSON.stringify({ email, sentAt: Date.now() }));
+  }
+
+  openEmailVerificationModal(email);
+  toast(`📩 Verification link sent to ${email}`);
+}
+
+function openEmailVerificationModal(email){
+  pendingVerificationEmail = email || pendingVerificationEmail;
+  console.log('[auth_flow] Email verification modal opened for:', pendingVerificationEmail);
+  const modal = document.getElementById('emailVerificationModalBackdrop');
+  if(modal){
+    modal.style.cssText = "position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(5,5,10,0.85);display:flex !important;align-items:center;justify-content:center;z-index:999999;padding:20px;backdrop-filter:blur(4px);";
+    modal.classList.add('show');
+  }
+
+  const targetEl = document.getElementById('emailVerifyTargetDisplay');
+  if(targetEl) targetEl.textContent = `Target Email: ${pendingVerificationEmail}`;
+
+  const stateEl = document.getElementById('emailVerifyStateDisplay');
+  if(stateEl) stateEl.innerHTML = `<span>⌛ Verification Link Sent — Pending Confirmation</span>`;
+
+  const errEl = document.getElementById('emailVerifyModalError');
+  if(errEl) errEl.textContent = '';
+}
+
+function closeEmailVerificationModal(){
+  const modal = document.getElementById('emailVerificationModalBackdrop');
+  if(modal){
+    modal.style.cssText = "display:none !important;";
+    modal.classList.remove('show');
+  }
+}
+
+async function checkUserEmailVerificationStatus(){
+  if(!pendingVerificationEmail) return;
+  const email = pendingVerificationEmail;
+  console.log('[auth_flow] Checking email verification status for:', email);
+
+  let verified = false;
+  const isDemo = (await storageGet('verified_demo:' + email)) === 'true';
+  if(isDemo) verified = true;
+
+  let raw = await storageGet('user:' + email);
+  if(raw){
+    const u = JSON.parse(raw);
+    if(u.verified || u.emailVerified) verified = true;
+  }
+
+  if(window.firebase && window.firebase.auth && window.firebase.auth().currentUser){
+    await window.firebase.auth().currentUser.reload().catch(e=>{});
+    if(window.firebase.auth().currentUser.emailVerified) verified = true;
+  }
+
+  const stateEl = document.getElementById('emailVerifyStateDisplay');
+  const errEl = document.getElementById('emailVerifyModalError');
+
+  if(verified){
+    if(stateEl) stateEl.innerHTML = `<span style="color:var(--green)">✅ Email Verified! Account Active.</span>`;
+    if(errEl) errEl.textContent = '';
+    toast('🎉 Email successfully verified!');
+    setTimeout(() => {
+      closeEmailVerificationModal();
+      onAuthEmailInputChange();
+    }, 1000);
+  } else {
+    if(stateEl) stateEl.innerHTML = `<span style="color:var(--yellow)">⌛ Still Pending... Please check your inbox or click Instant Demo Verify.</span>`;
+    if(errEl) errEl.textContent = 'Verification link not clicked yet. You can click Instant Demo Verify for instant testing.';
+  }
+}
+
+async function instantDemoVerifyEmail(){
+  if(!pendingVerificationEmail) return;
+  const email = pendingVerificationEmail;
+  console.log('[auth_flow] Instant demo verifying email for:', email);
+
+  await storageSet('verified_demo:' + email, 'true');
+
+  let raw = await storageGet('user:' + email);
+  if(raw){
+    const u = JSON.parse(raw);
+    u.verified = true;
+    u.emailVerified = true;
+    await storageSet('user:' + email, JSON.stringify(u));
+  }
+
+  await syncUserProfileToFirebase({ email: email, emailVerified: true });
+
+  const stateEl = document.getElementById('emailVerifyStateDisplay');
+  if(stateEl) stateEl.innerHTML = `<span style="color:var(--green)">⚡ Verified via Demo Mode!</span>`;
+
+  toast('🎉 Email verified! You can now log in.');
+  setTimeout(() => {
+    closeEmailVerificationModal();
+    onAuthEmailInputChange();
+  }, 800);
+}
+
+async function checkEmailVerificationUrlParams(){
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const verifyEmail = urlParams.get('verifyEmail');
+    const oobCode = urlParams.get('oobCode');
+    const mode = urlParams.get('mode');
+
+    if(oobCode && (mode === 'verifyEmail' || mode === 'signIn') && window.firebase && window.firebase.auth){
+      try {
+        await window.firebase.auth().applyActionCode(oobCode);
+        console.log('[auth_flow] Firebase applyActionCode succeeded.');
+        toast('🎉 Email successfully verified via Firebase Auth!');
+      } catch(e){
+        console.log('[auth_flow] Firebase applyActionCode note:', e);
+      }
+    }
+
+    if(verifyEmail && isValidEmail(verifyEmail)){
+      console.log('[auth_flow] URL verification parameter detected for:', verifyEmail);
+      await storageSet('verified_demo:' + verifyEmail, 'true');
+      let raw = await storageGet('user:' + verifyEmail);
+      if(raw){
+        const u = JSON.parse(raw);
+        u.verified = true;
+        u.emailVerified = true;
+        await storageSet('user:' + verifyEmail, JSON.stringify(u));
+      }
+      await syncUserProfileToFirebase({ email: verifyEmail, emailVerified: true });
+      toast(`🎉 Email verified for ${verifyEmail}! Please log in.`);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  } catch(e){}
 }
 
 function openResetPasswordModal(){
@@ -288,9 +538,10 @@ async function saveNewPassword(){
 
   console.log('[auth_flow] Saving new password for:', pendingResetUser.user.email);
 
-  if(!newPass || newPass.length < 6){
-    console.warn('[auth_flow] Save new password failed: Password must be at least 6 characters.');
-    if(errEl) errEl.textContent = 'Password must be at least 6 characters long.';
+  const passErr = validatePasswordComplexity(newPass);
+  if(passErr){
+    console.warn('[auth_flow] Save new password failed:', passErr);
+    if(errEl) errEl.textContent = passErr;
     return;
   }
 

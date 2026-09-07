@@ -184,9 +184,9 @@ async function waitForFirebaseDb(maxWaitMs = 2500){
 }
 
 async function renderStudentPortalUI(targetGroup, sessionId, email, gid, tlat, tlng, userAppData){
-  publicPortalData = { sessionId, email, gid, tlat, tlng, userAppData, targetGroup };
-  const instEl = document.getElementById('portalInstitutionName');
-  const classEl = document.getElementById('portalClassDetails');
+  publicPortalData = Object.assign(publicPortalData || {}, { sessionId, email, gid, tlat, tlng, userAppData, targetGroup });
+  const instEl = document.getElementById('portalInstitutionName') || document.getElementById('portalInstName');
+  const classEl = document.getElementById('portalClassDetails') || document.getElementById('portalClassInfo');
   const subjDateEl = document.getElementById('portalSubjectDate');
   const select = document.getElementById('portalStudentSelect');
   const statusEl = document.getElementById('portalStatusMsg') || document.getElementById('portalStatusMessage');
@@ -231,8 +231,8 @@ async function openStudentPublicPortal(sessionId, email, gid){
     const portalScreen = document.getElementById('studentPublicPortalScreen');
     if(portalScreen) portalScreen.style.display = 'flex';
 
-    const instEl = document.getElementById('portalInstitutionName');
-    const classEl = document.getElementById('portalClassDetails');
+    const instEl = document.getElementById('portalInstitutionName') || document.getElementById('portalInstName');
+    const classEl = document.getElementById('portalClassDetails') || document.getElementById('portalClassInfo');
     const subjDateEl = document.getElementById('portalSubjectDate');
     const select = document.getElementById('portalStudentSelect');
     const statusEl = document.getElementById('portalStatusMsg') || document.getElementById('portalStatusMessage');

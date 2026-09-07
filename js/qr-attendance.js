@@ -64,6 +64,22 @@ function updateDynamicQrDisplay(teacherLat, teacherLng){
   }
 }
 
+async function rotateSecurityPin(){
+  if(!activeQrSessionId || !qrSessionActive) return;
+  const newPin = Math.floor(1000 + Math.random() * 9000).toString();
+  if(document.getElementById('qrLivePinDisplay')) {
+    document.getElementById('qrLivePinDisplay').textContent = newPin;
+  }
+  if(firebaseDb){
+    try {
+      await firebaseDb.collection('attendo_qr_sessions').doc(activeQrSessionId).set({ pin: newPin }, { merge: true });
+      await firebaseDb.collection('qrcode').doc(activeQrSessionId).set({ pin: newPin }, { merge: true });
+      console.log(`[qr_flow] Security PIN rotated to: ${newPin}`);
+      if(typeof toast === 'function') toast(`🔐 Security PIN updated: ${newPin}`);
+    } catch(e){}
+  }
+}
+
 async function startQrAttendanceSession(){
   const g = getGroup();
   if(!g){ toast('Please open a class first.'); return; }
@@ -164,22 +180,6 @@ async function startQrAttendanceSession(){
   }
 
   updateDynamicQrDisplay(teacherLat, teacherLng);
-
-async function rotateSecurityPin(){
-  if(!activeQrSessionId || !qrSessionActive) return;
-  const newPin = Math.floor(1000 + Math.random() * 9000).toString();
-  if(document.getElementById('qrLivePinDisplay')) {
-    document.getElementById('qrLivePinDisplay').textContent = newPin;
-  }
-  if(firebaseDb){
-    try {
-      await firebaseDb.collection('attendo_qr_sessions').doc(activeQrSessionId).set({ pin: newPin }, { merge: true });
-      await firebaseDb.collection('qrcode').doc(activeQrSessionId).set({ pin: newPin }, { merge: true });
-      console.log(`[qr_flow] Security PIN rotated to: ${newPin}`);
-      if(typeof toast === 'function') toast(`🔐 Security PIN updated: ${newPin}`);
-    } catch(e){}
-  }
-}
 
   clearInterval(qrRotateInterval);
   qrRotateInterval = setInterval(() => {

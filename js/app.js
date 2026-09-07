@@ -18,6 +18,7 @@ initTheme();
 
 window.addEventListener('DOMContentLoaded', async () => {
   console.log('[auth_flow] App initialized. Checking session status...');
+  try { await checkEmailVerificationUrlParams(); } catch(e){}
   const isPortal = await checkStudentPortalParams();
   if(!isPortal){
     let savedUser = null;
