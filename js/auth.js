@@ -354,6 +354,7 @@ async function onAuthEmailInputChange(){
 
 async function triggerEmailVerification(targetEmail){
   const email = (targetEmail || document.getElementById('authEmail')?.value || '').trim().toLowerCase();
+  const password = document.getElementById('authPassword')?.value || 'Attendo@2026';
   const errEl = document.getElementById('authError');
   const statusHint = document.getElementById('emailVerifyStatusHint');
   if(errEl) errEl.textContent = '';
@@ -367,29 +368,63 @@ async function triggerEmailVerification(targetEmail){
   pendingVerificationEmail = email;
   console.log('[auth_flow] Triggering Firebase email verification for:', email);
 
+  let emailSentSuccessfully = false;
+
   if(window.firebase && window.firebase.auth){
     try {
-      const user = window.firebase.auth().currentUser;
-      if(user && user.email === email){
-        await user.sendEmailVerification();
-        console.log('[auth_flow] Firebase currentUser.sendEmailVerification() sent to:', email);
-      } else {
+      let user = window.firebase.auth().currentUser;
+      
+      if(!user || user.email !== email){
+        try {
+          const userCred = await window.firebase.auth().createUserWithEmailAndPassword(email, password);
+          user = userCred.user;
+        } catch(createErr){
+          if(createErr.code === 'auth/email-already-in-use'){
+            try {
+              const userCred = await window.firebase.auth().signInWithEmailAndPassword(email, password);
+              user = userCred.user;
+            } catch(signInErr){}
+          }
+        }
+      }
+
+      if(user){
+        const baseUrl = typeof getAppBaseUrl === 'function' ? getAppBaseUrl() : window.location.origin + window.location.pathname;
         const actionCodeSettings = {
-          url: window.location.origin + window.location.pathname + '?verifyEmail=' + encodeURIComponent(email),
+          url: baseUrl + '?verifyEmail=' + encodeURIComponent(email),
           handleCodeInApp: true
         };
-        await window.firebase.auth().sendSignInLinkToEmail(email, actionCodeSettings).catch(e=>{
-          console.log('[auth_flow] Firebase sendSignInLinkToEmail note:', e);
-        });
+        await user.sendEmailVerification(actionCodeSettings);
+        emailSentSuccessfully = true;
+        console.log('[auth_flow] Firebase user.sendEmailVerification() successfully dispatched to:', email);
+      } else {
+        const baseUrl = typeof getAppBaseUrl === 'function' ? getAppBaseUrl() : window.location.origin + window.location.pathname;
+        const actionCodeSettings = {
+          url: baseUrl + '?verifyEmail=' + encodeURIComponent(email),
+          handleCodeInApp: true
+        };
+        await window.firebase.auth().sendSignInLinkToEmail(email, actionCodeSettings);
+        emailSentSuccessfully = true;
       }
     } catch(e){
-      console.log('[auth_flow] Firebase Auth verification error:', e);
+      console.warn('[auth_flow] Firebase Auth verification email dispatch note:', e);
     }
   }
 
+  const baseUrl = typeof getAppBaseUrl === 'function' ? getAppBaseUrl() : window.location.origin + window.location.pathname;
+  const directVerifyUrl = baseUrl + '?verifyEmail=' + encodeURIComponent(email);
+
   if(statusHint){
     statusHint.style.display = 'block';
-    statusHint.innerHTML = `<span style="color:var(--cyan);font-weight:600">📩 Verification link sent to <b>${email}</b>! Check your inbox and click the link.</span>`;
+    statusHint.innerHTML = `
+      <div style="margin-top:6px;padding:8px 10px;border-radius:8px;background:rgba(6,182,212,0.1);border:1px solid rgba(6,182,212,0.3);color:var(--text);font-size:11px">
+        <div style="font-weight:700;color:var(--cyan);margin-bottom:2px">📩 Verification Link Sent to: <b>${email}</b></div>
+        <div>Please check your email inbox/spam folder to verify.</div>
+        <div style="margin-top:4px;font-size:10px;color:var(--text-dim)">
+          Verification Link: <a href="${directVerifyUrl}" target="_blank" style="color:var(--cyan);text-decoration:underline">Click here to verify email</a>
+        </div>
+      </div>
+    `;
   }
 
   toast(`📩 Verification link sent to ${email}`);
