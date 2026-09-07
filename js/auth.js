@@ -56,6 +56,11 @@ function toggleAuthMode(targetMode){
     if(forgotLink) forgotLink.style.display = 'block';
     if(submitBtn) submitBtn.textContent = 'Log in';
     if(switchText) switchText.innerHTML = 'New here? <span onclick="toggleAuthMode(\'signup\')">Create an account</span>';
+
+    const inlineBtn = document.getElementById('verifyEmailInlineBtn');
+    const statusHint = document.getElementById('emailVerifyStatusHint');
+    if(inlineBtn) inlineBtn.style.display = 'none';
+    if(statusHint) statusHint.style.display = 'none';
   }
 
   try { onAuthEmailInputChange(); } catch(e){}
@@ -64,7 +69,6 @@ function toggleAuthMode(targetMode){
 function isValidEmail(email) {
   if (!email || typeof email !== 'string') return false;
   const trimmed = email.trim().toLowerCase();
-  // Standard RFC 5322 Email Validation Pattern (supports 1@gmail.com, user@domain.com, etc.)
   const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
   return emailRegex.test(trimmed);
 }
@@ -97,6 +101,7 @@ async function syncUserProfileToFirebase(userProfile){
         email: userProfile.email,
         designation: userProfile.designation || 'Assistant Professor',
         authProvider: userProfile.authProvider || 'email_password',
+        emailVerified: userProfile.emailVerified || false,
         lastLoginAt: Date.now(),
         updatedAt: Date.now()
       }, { merge: true });
@@ -174,7 +179,6 @@ async function handleAuthSubmit(){
   }
 
   if(authMode === 'forgot'){
-    // FORGOT PASSWORD FLOW
     console.log('[auth_flow] Executing password reset request for:', email);
     let raw = null;
     try { raw = await storageGet('user:' + email); } catch(e){}
@@ -198,7 +202,6 @@ async function handleAuthSubmit(){
     const user = JSON.parse(raw);
     pendingResetUser = { email: email, user: user };
 
-    // Trigger Firebase Google password reset mailer
     if(window.firebase && window.firebase.auth){
       try {
         console.log('[auth_flow] Sending Firebase password reset email to:', email);
@@ -210,7 +213,7 @@ async function handleAuthSubmit(){
     return;
 
   } else if(authMode === 'signup'){
-    // SIGNUP FLOW WITH MANDATORY EMAIL VERIFICATION
+    // SIGNUP FLOW WITH INLINE EMAIL VERIFICATION CHECK
     console.log('[auth_flow] Executing signup flow for:', email);
     const passErr = validatePasswordComplexity(password);
     if(passErr){
@@ -219,7 +222,7 @@ async function handleAuthSubmit(){
       return;
     }
 
-    const name = document.getElementById('signupName').value.trim();
+    const name = document.getElementById('signupName')?.value?.trim() || '';
     const designation = document.getElementById('signupDesignation')?.value || 'Assistant Professor';
     
     if(!name || name.length < 2){
@@ -235,27 +238,42 @@ async function handleAuthSubmit(){
       return;
     }
 
+    // Check email verification state
+    let isVerified = false;
+    if(window.firebase && window.firebase.auth && window.firebase.auth().currentUser && window.firebase.auth().currentUser.email === email){
+      await window.firebase.auth().currentUser.reload().catch(e=>{});
+      isVerified = window.firebase.auth().currentUser.emailVerified;
+    }
+
+    if(!isVerified){
+      console.warn('[auth_flow] Signup paused: Email verification link required for:', email);
+      if(errEl) errEl.textContent = '📩 Please verify your email first! Verification link sent. Check your inbox and click the link.';
+      triggerEmailVerification(email);
+      return;
+    }
+
     const user = {
       name,
       email,
       password,
       designation,
-      verified: false,
-      emailVerified: false,
+      verified: true,
+      emailVerified: true,
       createdAt: Date.now()
     };
 
     await storageSet('user:' + email, JSON.stringify(user));
     await storageSet('data:' + email, JSON.stringify({ groups: [] }));
 
-    await syncUserProfileToFirebase({ name, email, designation, authProvider: 'email_password', emailVerified: false });
+    await syncUserProfileToFirebase({ name, email, designation, authProvider: 'email_password', emailVerified: true });
 
-    console.log('[auth_flow] Signup completed. Email verification required for:', email);
-    toast(`📩 Account created! Please verify your email before logging in.`);
-    triggerEmailVerification(email);
+    currentUser = { name, email, designation };
+    console.log('[auth_flow] Signup completed successfully for:', email);
+    toast(`🎉 Account created successfully — Welcome to Attendo, ${name.split(' ')[0]}!`);
+    enterApp();
 
   } else {
-    // LOGIN FLOW WITH EMAIL VERIFICATION CHECK
+    // LOGIN FLOW (CLEAN & NO VERIFY BUTTONS)
     console.log('[auth_flow] Executing login flow for:', email);
     if(!password){
       console.warn('[auth_flow] Login failed: Missing password.');
@@ -276,11 +294,9 @@ async function handleAuthSubmit(){
       return;
     }
 
-    const isDemo = (await storageGet('verified_demo:' + email)) === 'true';
-    if(!user.verified && !user.emailVerified && !isDemo){
+    if(user.emailVerified === false && !user.verified){
       console.warn('[auth_flow] Login blocked: Email not verified for:', email);
-      if(errEl) errEl.textContent = '⚠️ Email address is not verified yet! Please check your inbox or verify email.';
-      triggerEmailVerification(email);
+      if(errEl) errEl.textContent = '⚠️ Email address is not verified yet! Switch to Create Account to verify email.';
       return;
     }
 
@@ -296,38 +312,42 @@ async function onAuthEmailInputChange(){
   const inlineBtn = document.getElementById('verifyEmailInlineBtn');
   const statusHint = document.getElementById('emailVerifyStatusHint');
 
+  // Strictly hide inline verify button and hints when in Login or Forgot mode
+  if(authMode !== 'signup'){
+    if(inlineBtn) inlineBtn.style.display = 'none';
+    if(statusHint) statusHint.style.display = 'none';
+    return;
+  }
+
   if(!email || !isValidEmail(email)){
     if(inlineBtn) inlineBtn.style.display = 'none';
     if(statusHint) statusHint.style.display = 'none';
     return;
   }
 
-  if(inlineBtn && authMode === 'signup') inlineBtn.style.display = 'inline-block';
-
+  let isVerified = false;
   let raw = await storageGet('user:' + email);
-  if(!raw && window.firebaseDb){
-    try {
-      const docKey = typeof sanitizeKey === 'function' ? sanitizeKey(email) : email.replace(/[^a-zA-Z0-9_]/g, '_');
-      const doc = await firebaseDb.collection('users').doc(docKey).get();
-      if(doc.exists && doc.data()) raw = JSON.stringify(doc.data());
-    } catch(e){}
+  if(raw){
+    const u = JSON.parse(raw);
+    if(u.verified || u.emailVerified) isVerified = true;
+  }
+
+  if(window.firebase && window.firebase.auth && window.firebase.auth().currentUser && window.firebase.auth().currentUser.email === email){
+    await window.firebase.auth().currentUser.reload().catch(e=>{});
+    if(window.firebase.auth().currentUser.emailVerified) isVerified = true;
   }
 
   if(statusHint){
     statusHint.style.display = 'block';
-    if(raw){
-      const u = JSON.parse(raw);
-      let isVerified = u.verified || u.emailVerified;
-      if(window.firebase && window.firebase.auth && window.firebase.auth().currentUser && window.firebase.auth().currentUser.email === email){
-        isVerified = window.firebase.auth().currentUser.emailVerified;
-      }
-      if(isVerified){
-        statusHint.innerHTML = '<span style="color:var(--green)">✅ Email Verified (Firebase Verified)</span>';
-      } else {
-        statusHint.innerHTML = '<span style="color:var(--yellow)">⌛ Email Unverified — Firebase verification required before login</span>';
-      }
+    if(isVerified){
+      statusHint.innerHTML = '<span style="color:var(--green);font-size:11px;font-weight:600">✅ Email Verified</span>';
+      if(inlineBtn) inlineBtn.style.display = 'none';
     } else {
-      statusHint.innerHTML = '<span style="color:var(--cyan)">ℹ️ New Email — Verification link will be sent upon account creation</span>';
+      statusHint.innerHTML = '<span style="color:var(--yellow);font-size:11px">⌛ Unverified — Click "Verify" to send verification link</span>';
+      if(inlineBtn){
+        inlineBtn.style.display = 'inline-block';
+        inlineBtn.textContent = '✉️ Verify';
+      }
     }
   }
 }
@@ -335,6 +355,7 @@ async function onAuthEmailInputChange(){
 async function triggerEmailVerification(targetEmail){
   const email = (targetEmail || document.getElementById('authEmail')?.value || '').trim().toLowerCase();
   const errEl = document.getElementById('authError');
+  const statusHint = document.getElementById('emailVerifyStatusHint');
   if(errEl) errEl.textContent = '';
 
   if(!email || !isValidEmail(email)){
@@ -366,15 +387,11 @@ async function triggerEmailVerification(targetEmail){
     }
   }
 
-  let raw = await storageGet('user:' + email);
-  if(raw){
-    const u = JSON.parse(raw);
-    u.emailVerified = false;
-    u.verificationSentAt = Date.now();
-    await storageSet('user:' + email, JSON.stringify(u));
+  if(statusHint){
+    statusHint.style.display = 'block';
+    statusHint.innerHTML = `<span style="color:var(--cyan);font-weight:600">📩 Verification link sent to <b>${email}</b>! Check your inbox and click the link.</span>`;
   }
 
-  openEmailVerificationModal(email);
   toast(`📩 Verification link sent to ${email}`);
 }
 
