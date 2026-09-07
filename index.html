@@ -502,7 +502,10 @@
         <div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em">🔒 Classroom Security PIN</div>
         <div style="font-size:11px;color:var(--text-dim)">Students must enter this PIN to submit</div>
       </div>
-      <div id="qrLivePinDisplay" style="font-size:28px;font-weight:900;letter-spacing:6px;font-family:'JetBrains Mono',monospace;color:var(--cyan)">----</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div id="qrLivePinDisplay" style="font-size:28px;font-weight:900;letter-spacing:6px;font-family:'JetBrains Mono',monospace;color:var(--cyan)">----</div>
+        <button class="icon-btn btn-sm" onclick="rotateSecurityPin()" title="Rotate PIN" style="font-size:14px;padding:6px">🔄</button>
+      </div>
     </div>
 
     <!-- Large QR Code Display -->

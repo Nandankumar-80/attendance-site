@@ -32,6 +32,90 @@ function calculateHaversineDistanceMeters(lat1, lon1, lat2, lon2) {
   return Math.round(R * c);
 }
 
+function evaluateMultiFactorFusion(params) {
+  const {
+    scanSlot,
+    nowSlot,
+    userPin,
+    sessionPin,
+    devId,
+    sessionDevices,
+    studentId,
+    sLat,
+    sLng,
+    tlat,
+    tlng,
+    sAccuracy
+  } = params;
+
+  let score = 0;
+  let qrValid = false;
+  let pinValid = false;
+  let deviceValid = false;
+  let gpsValid = false;
+  let hardFailReason = null;
+  let distanceMeters = null;
+
+  // 1. Dynamic QR Expiry Check (30 pts)
+  const slotDiff = nowSlot - scanSlot;
+  if (!isNaN(scanSlot) && slotDiff >= -1 && slotDiff <= 2) {
+    qrValid = true;
+    score += 30;
+  } else {
+    hardFailReason = `QR Token Expired (${slotDiff > 2 ? 'Scanned code is older than 20s' : 'Invalid token slot'})`;
+  }
+
+  // 2. Security PIN Check (30 pts)
+  if (!sessionPin || (userPin && userPin === sessionPin)) {
+    pinValid = true;
+    score += 30;
+  } else {
+    hardFailReason = hardFailReason || 'Incorrect Classroom Security PIN';
+  }
+
+  // 3. Single Device / Session Lock Check (20 pts)
+  if (!sessionDevices || !sessionDevices[devId] || sessionDevices[devId].studentId === studentId) {
+    deviceValid = true;
+    score += 20;
+  } else {
+    hardFailReason = hardFailReason || `Phone already used by ${sessionDevices[devId].name || 'another student'}`;
+  }
+
+  // 4. GPS Distance Evidence (20 pts)
+  if (!isNaN(tlat) && !isNaN(tlng) && sLat !== null && sLng !== null) {
+    distanceMeters = calculateHaversineDistanceMeters(tlat, tlng, sLat, sLng);
+    const allowedRadius = Math.max(100, Math.min(250, (sAccuracy || 30) + 50));
+    if (distanceMeters <= allowedRadius || window.forceBypassGeo) {
+      gpsValid = true;
+      score += 20;
+    }
+  } else {
+    gpsValid = false;
+  }
+
+  let status = 'REJECT';
+  if (hardFailReason) {
+    status = 'REJECT';
+  } else if (score >= 80) {
+    status = 'ALLOW';
+  } else if (score >= 50) {
+    status = 'UNCERTAIN';
+  } else {
+    status = 'REJECT';
+  }
+
+  return {
+    score,
+    status,
+    qrValid,
+    pinValid,
+    deviceValid,
+    gpsValid,
+    hardFailReason,
+    distanceMeters
+  };
+}
+
 function portalGroupLabel(g){
   if(!g) return '';
   if(g.type === 'college'){
@@ -255,6 +339,9 @@ async function openStudentPublicPortal(sessionId, email, gid){
             if(publicPortalData) publicPortalData.pin = sessionData.pin;
             const pinField = document.getElementById('portalPinField');
             if(pinField) pinField.style.display = 'block';
+          }
+          if(sessionData.devices){
+            if(publicPortalData) publicPortalData.sessionDevices = sessionData.devices;
           }
 
           // Strict Single Device Lock Check from Cloud DB
@@ -615,17 +702,80 @@ async function submitPublicStudentAttendance(){
     }
 
     const devId = getAttendoDeviceId();
+    const tsParam = params.get('ts');
+    const nowSlot = Math.floor(Date.now() / 10000);
+    const scanSlot = tsParam ? parseInt(tsParam, 10) : nowSlot;
+    const userPin = document.getElementById('portalPinInput')?.value?.trim();
+
+    const fusionResult = evaluateMultiFactorFusion({
+      scanSlot,
+      nowSlot,
+      userPin,
+      sessionPin: publicPortalData.pin,
+      devId,
+      sessionDevices: publicPortalData.sessionDevices || {},
+      studentId,
+      sLat,
+      sLng,
+      tlat,
+      tlng,
+      sAccuracy
+    });
+
+    console.log(`[qr_flow] Multi-Factor Fusion Evaluation: Status = ${fusionResult.status}, Score = ${fusionResult.score}/100`);
+
+    if(fusionResult.status === 'REJECT'){
+      if(btn){
+        btn.disabled = false;
+        btn.textContent = '✅ Mark Me Present';
+      }
+      if(statusEl){
+        statusEl.style.display = 'block';
+        statusEl.style.background = 'rgba(239,68,68,0.15)';
+        statusEl.style.color = '#ef4444';
+        statusEl.style.border = '1px solid rgba(239,68,68,0.3)';
+        statusEl.style.padding = '18px';
+        statusEl.style.borderRadius = '12px';
+        statusEl.style.textAlign = 'center';
+        statusEl.innerHTML = `
+          <div style="font-size:36px;margin-bottom:6px">❌</div>
+          <h3 style="margin:0 0 6px 0;font-size:16px;color:#ef4444">Attendance Submission Rejected</h3>
+          <p style="margin:0;font-size:13px;line-height:1.5">${fusionResult.hardFailReason || 'Verification failed. Please scan the live classroom QR code.'}</p>
+        `;
+      }
+      return;
+    }
+
+    const fusionBadgeHtml = fusionResult.status === 'ALLOW' 
+      ? `<span style="color:#22c55e;font-weight:700">✅ Approved (Score: ${fusionResult.score}/100)</span>`
+      : `<span style="color:#f59e0b;font-weight:700">⚠️ Flagged for Teacher Review (Score: ${fusionResult.score}/100)</span>`;
 
     // 1. Direct Public Write to attendo_qr_sessions for instant live headcount increment on teacher screen
     if(firebaseDb && publicPortalData.sessionId){
+      const evalRecord = {
+        studentId: studentId,
+        name: sName,
+        rollNo: sRoll,
+        score: fusionResult.score,
+        status: fusionResult.status,
+        qrValid: fusionResult.qrValid,
+        pinValid: fusionResult.pinValid,
+        deviceValid: fusionResult.deviceValid,
+        gpsValid: fusionResult.gpsValid,
+        distanceMeters: fusionResult.distanceMeters,
+        deviceId: devId,
+        evaluatedAt: Date.now()
+      };
+
       firebaseDb.collection('attendo_qr_sessions').doc(publicPortalData.sessionId).set({
         records: { [studentId]: true },
         devices: { [devId]: { studentId: studentId, name: sName, rollNo: sRoll, time: Date.now() } },
+        evaluations: { [studentId]: evalRecord },
         lastStudentMarked: sName,
         lastMarkedAt: Date.now()
       }, { merge: true }).catch(e=>{});
 
-      // 2. Main Database Node Write: qrcode -> id -> scanners & devices
+      // 2. Main Database Node Write: qrcode -> id -> scanners, devices & evaluations
       const scannerRecord = {
         studentId: studentId,
         name: sName,
@@ -634,6 +784,8 @@ async function submitPublicStudentAttendance(){
         lng: sLng,
         accuracy: sAccuracy,
         deviceId: devId,
+        fusionStatus: fusionResult.status,
+        fusionScore: fusionResult.score,
         scannedAt: Date.now()
       };
 
@@ -643,9 +795,12 @@ async function submitPublicStudentAttendance(){
         },
         devices: {
           [devId]: { studentId: studentId, name: sName, rollNo: sRoll, time: Date.now() }
+        },
+        evaluations: {
+          [studentId]: evalRecord
         }
       }, { merge: true }).then(() => {
-        console.log(`[qr_flow] Database node updated: qrcode -> ${publicPortalData.sessionId} -> scanners -> ${studentId} (Device: ${devId})`);
+        console.log(`[qr_flow] Database node updated: qrcode -> ${publicPortalData.sessionId} -> evaluations -> ${studentId} (Status: ${fusionResult.status}, Score: ${fusionResult.score})`);
       }).catch(e => console.error('[qr_flow] Error updating qrcode node scanner details:', e));
     }
 
