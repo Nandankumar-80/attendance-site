@@ -644,9 +644,68 @@ async function submitPublicStudentAttendance(){
 
   try {
     const g = publicPortalData.targetGroup;
+    const student = (g && g.students || []).find(s => s.id === studentId);
+    const sName = student ? student.name : 'Student';
+    const sRoll = student ? student.rollNo : '';
+    const instName = portalGroupInstitution(g);
+    const classLbl = portalGroupLabel(g);
+
+    const devId = getAttendoDeviceId();
+    const tsParam = params.get('ts');
+    const nowSlot = Math.floor(Date.now() / 10000);
+    const scanSlot = tsParam ? parseInt(tsParam, 10) : nowSlot;
+    const userPin = document.getElementById('portalPinInput')?.value?.trim();
+
+    // 1. EVALUATE MULTI-FACTOR FUSION FIRST BEFORE MUTATING SESSION OR DEVICE LOCK
+    const fusionResult = evaluateMultiFactorFusion({
+      scanSlot,
+      nowSlot,
+      userPin,
+      sessionPin: publicPortalData.pin,
+      devId,
+      sessionDevices: publicPortalData.sessionDevices || {},
+      studentId,
+      sLat,
+      sLng,
+      tlat,
+      tlng,
+      sAccuracy
+    });
+
+    console.log(`[qr_flow] Multi-Factor Fusion Evaluation: Status = ${fusionResult.status}, Score = ${fusionResult.score}/100`);
+
+    if(fusionResult.status === 'REJECT'){
+      // Ensure no device lock is left in localStorage on rejected attempts
+      try {
+        localStorage.removeItem('attendo_marked_' + publicPortalData.sessionId);
+      } catch(e){}
+
+      if(select) select.style.display = 'block';
+      if(btn){
+        btn.disabled = false;
+        btn.textContent = '✅ Mark Me Present';
+      }
+      if(statusEl){
+        statusEl.style.display = 'block';
+        statusEl.style.background = 'rgba(239,68,68,0.15)';
+        statusEl.style.color = '#ef4444';
+        statusEl.style.border = '1px solid rgba(239,68,68,0.3)';
+        statusEl.style.padding = '18px';
+        statusEl.style.borderRadius = '12px';
+        statusEl.style.textAlign = 'center';
+        statusEl.innerHTML = `
+          <div style="font-size:36px;margin-bottom:6px">❌</div>
+          <h3 style="margin:0 0 6px 0;font-size:16px;color:#ef4444">Attendance Submission Rejected</h3>
+          <p style="margin:0 0 8px 0;font-size:13px;line-height:1.5">${fusionResult.hardFailReason || 'Verification failed. Please scan the live classroom QR code.'}</p>
+          <p style="margin:0;font-size:12px;color:var(--text-dim)">Please scan the fresh live QR code on the teacher screen and try again.</p>
+        `;
+      }
+      return;
+    }
+
+    // 2. SUCCESSFUL OR UNCERTAIN VERIFICATION: NOW MUTATE SESSION & SAVE DEVICE LOCK
     if(g){
       if(!g.sessions) g.sessions = [];
-
       let sess = g.sessions.find(s => s.id === publicPortalData.sessionId);
       if(!sess){
         sess = {
@@ -657,19 +716,11 @@ async function submitPublicStudentAttendance(){
         };
         g.sessions.push(sess);
       }
-
       if(!sess.records) sess.records = {};
       sess.records[studentId] = true;
     }
 
-    // Get student info for confirmation card
-    const student = (g && g.students || []).find(s => s.id === studentId);
-    const sName = student ? student.name : 'Student';
-    const sRoll = student ? student.rollNo : '';
-    const instName = portalGroupInstitution(g);
-    const classLbl = portalGroupLabel(g);
-
-    // Save device lock token to prevent duplicate submissions from same phone
+    // Save device lock token only on successful/evaluated submission
     try {
       localStorage.setItem('attendo_marked_' + publicPortalData.sessionId, studentId);
     } catch(e){}
@@ -701,56 +752,11 @@ async function submitPublicStudentAttendance(){
       `;
     }
 
-    const devId = getAttendoDeviceId();
-    const tsParam = params.get('ts');
-    const nowSlot = Math.floor(Date.now() / 10000);
-    const scanSlot = tsParam ? parseInt(tsParam, 10) : nowSlot;
-    const userPin = document.getElementById('portalPinInput')?.value?.trim();
-
-    const fusionResult = evaluateMultiFactorFusion({
-      scanSlot,
-      nowSlot,
-      userPin,
-      sessionPin: publicPortalData.pin,
-      devId,
-      sessionDevices: publicPortalData.sessionDevices || {},
-      studentId,
-      sLat,
-      sLng,
-      tlat,
-      tlng,
-      sAccuracy
-    });
-
-    console.log(`[qr_flow] Multi-Factor Fusion Evaluation: Status = ${fusionResult.status}, Score = ${fusionResult.score}/100`);
-
-    if(fusionResult.status === 'REJECT'){
-      if(btn){
-        btn.disabled = false;
-        btn.textContent = '✅ Mark Me Present';
-      }
-      if(statusEl){
-        statusEl.style.display = 'block';
-        statusEl.style.background = 'rgba(239,68,68,0.15)';
-        statusEl.style.color = '#ef4444';
-        statusEl.style.border = '1px solid rgba(239,68,68,0.3)';
-        statusEl.style.padding = '18px';
-        statusEl.style.borderRadius = '12px';
-        statusEl.style.textAlign = 'center';
-        statusEl.innerHTML = `
-          <div style="font-size:36px;margin-bottom:6px">❌</div>
-          <h3 style="margin:0 0 6px 0;font-size:16px;color:#ef4444">Attendance Submission Rejected</h3>
-          <p style="margin:0;font-size:13px;line-height:1.5">${fusionResult.hardFailReason || 'Verification failed. Please scan the live classroom QR code.'}</p>
-        `;
-      }
-      return;
-    }
-
     const fusionBadgeHtml = fusionResult.status === 'ALLOW' 
       ? `<span style="color:#22c55e;font-weight:700">✅ Approved (Score: ${fusionResult.score}/100)</span>`
       : `<span style="color:#f59e0b;font-weight:700">⚠️ Flagged for Teacher Review (Score: ${fusionResult.score}/100)</span>`;
 
-    // 1. Direct Public Write to attendo_qr_sessions for instant live headcount increment on teacher screen
+    // 3. Write Structured 3-Layer Proof to Cloud DB
     if(firebaseDb && publicPortalData.sessionId){
       const evalRecord = {
         auth: {
