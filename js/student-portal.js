@@ -135,6 +135,7 @@ function portalGroupInstitution(g){
 function prefetchStudentLocation(){
   if(navigator.geolocation){
     try {
+      // 1. Fast network/cell-tower location (instant indoor response)
       navigator.geolocation.getCurrentPosition(
         (p) => {
           if(p && p.coords){
@@ -142,19 +143,20 @@ function prefetchStudentLocation(){
             prefetchedAt = Date.now();
           }
         },
-        () => {
-          navigator.geolocation.getCurrentPosition(
-            (p2) => {
-              if(p2 && p2.coords){
-                prefetchedStudentCoords = p2.coords;
-                prefetchedAt = Date.now();
-              }
-            },
-            () => {},
-            { enableHighAccuracy: false, timeout: 4000, maximumAge: 120000 }
-          );
+        () => {},
+        { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 }
+      );
+
+      // 2. High accuracy satellite GPS (refines accuracy if available)
+      navigator.geolocation.getCurrentPosition(
+        (p2) => {
+          if(p2 && p2.coords){
+            prefetchedStudentCoords = p2.coords;
+            prefetchedAt = Date.now();
+          }
         },
-        { enableHighAccuracy: true, timeout: 4000, maximumAge: 30000 }
+        () => {},
+        { enableHighAccuracy: true, timeout: 6000, maximumAge: 30000 }
       );
     } catch(e){}
   }
@@ -525,10 +527,10 @@ async function submitPublicStudentAttendance(){
     } catch(e){}
   }
 
-  // Obtain Student Coords smoothly with High Accuracy
+  // Obtain Student Coords smoothly with Dual Network + GPS Fallback Engine
   let sLat = null, sLng = null, sAccuracy = null;
 
-  if(prefetchedStudentCoords && (Date.now() - prefetchedAt) < 20000){
+  if(prefetchedStudentCoords && (Date.now() - prefetchedAt) < 120000){
     sLat = prefetchedStudentCoords.latitude;
     sLng = prefetchedStudentCoords.longitude;
     sAccuracy = prefetchedStudentCoords.accuracy || null;
@@ -538,16 +540,18 @@ async function submitPublicStudentAttendance(){
         if(!navigator.geolocation) return resolve(null);
         let resolved = false;
 
+        // Try 1: Fast network/cell-tower location (works indoors in <1s)
         navigator.geolocation.getCurrentPosition(
           (p) => { if(!resolved){ resolved = true; resolve(p); } },
           () => {
+            // Fallback: Try high-accuracy satellite GPS
             navigator.geolocation.getCurrentPosition(
               (p2) => { if(!resolved){ resolved = true; resolve(p2); } },
               () => { if(!resolved){ resolved = true; resolve(null); } },
-              { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
+              { enableHighAccuracy: true, timeout: 6000, maximumAge: 60000 }
             );
           },
-          { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
+          { enableHighAccuracy: false, timeout: 4000, maximumAge: 300000 }
         );
 
         setTimeout(() => {
@@ -556,10 +560,10 @@ async function submitPublicStudentAttendance(){
             navigator.geolocation.getCurrentPosition(
               (p3) => resolve(p3),
               () => resolve(null),
-              { enableHighAccuracy: false, timeout: 3000, maximumAge: 60000 }
+              { enableHighAccuracy: false, timeout: 4000, maximumAge: 300000 }
             );
           }
-        }, 6500);
+        }, 5000);
       });
 
       if(pos && pos.coords){
@@ -586,13 +590,23 @@ async function submitPublicStudentAttendance(){
         statusEl.style.background = 'rgba(248,113,113,0.15)';
         statusEl.style.color = '#ef4444';
         statusEl.style.border = '1px solid rgba(248,113,113,0.3)';
-        statusEl.style.padding = '16px';
-        statusEl.style.borderRadius = '12px';
+        statusEl.style.padding = '18px';
+        statusEl.style.borderRadius = '14px';
         statusEl.style.textAlign = 'center';
         statusEl.innerHTML = `
-          <div style="font-size:36px;margin-bottom:6px">📍</div>
-          <h3 style="margin:0 0 6px 0;font-size:16px;color:#ef4444">GPS Location Access Required!</h3>
-          <p style="margin:0;font-size:13px;line-height:1.5">Classroom geofenced attendance requires high-accuracy GPS location on your phone.<br><span style="font-size:12px;color:var(--text-dim)">Please turn on Location/GPS on your device, allow browser permission, and tap Mark Me Present again.</span></p>
+          <div style="font-size:38px;margin-bottom:6px">📍</div>
+          <h3 style="margin:0 0 6px 0;font-size:16px;color:#ef4444">Location Permission / Access Required</h3>
+          <p style="margin:0 0 10px 0;font-size:13px;line-height:1.5">System Location ON hai, lekin Chrome browser permission blocked hai ya indoor satellite timeout hua hai.</p>
+          
+          <div style="background:rgba(0,0,0,0.3);border-radius:10px;padding:12px;text-align:left;font-size:12px;color:var(--text);margin-bottom:12px">
+            <div style="font-weight:700;color:var(--cyan);margin-bottom:4px">💡 2 Step Fix:</div>
+            <div style="margin-bottom:4px"><b>1.</b> Niche <b>"📍 Request Location & Retry"</b> tap karke pop-up par <b>Allow</b> karein.</div>
+            <div><b>2.</b> Agar pop-up na aaye, toh URL bar ke paas <b>🔒 Padlock icon</b> tap karein ➔ <b>Permissions</b> ➔ <b>Location Allow</b> karein.</div>
+          </div>
+
+          <button class="btn btn-sm btn-block" onclick="recalibrateStudentGps()" style="background:var(--cyan);color:#05050a;font-weight:800;padding:11px;font-size:13px;border-radius:8px">
+            📍 Request Location & Retry
+          </button>
         `;
       }
       return;
